@@ -1,16 +1,33 @@
 from autoagent.registry import register_agent
-from autoagent.tools.meta.edit_tools import list_tools, create_tool, delete_tool, run_tool, get_metachain_path
+from autoagent.tools.meta.edit_tools import (
+    list_tools,
+    create_tool,
+    delete_tool,
+    run_tool,
+    get_metachain_path,
+)
 from autoagent.tools.meta.tool_retriever import get_api_plugin_tools_doc
-from autoagent.tools.meta.search_tools import search_trending_models_on_huggingface, get_hf_model_tools_doc
+from autoagent.tools.meta.search_tools import (
+    search_trending_models_on_huggingface,
+    get_hf_model_tools_doc,
+)
 
 from autoagent.types import Agent
 from autoagent.io_utils import read_file
-from autoagent.tools.terminal_tools import execute_command, terminal_page_down, terminal_page_up, terminal_page_to
-@register_agent(name = "Tool Editor Agent", func_name="get_tool_editor_agent")
+from autoagent.tools.terminal_tools import (
+    execute_command,
+    terminal_page_down,
+    terminal_page_up,
+    terminal_page_to,
+)
+
+
+@register_agent(name="Tool Editor Agent", func_name="get_tool_editor_agent")
 def get_tool_editor_agent(model: str) -> Agent:
     """
     The tool editor is an agent that can be used to edit the tools.
     """
+
     def instructions(context_variables):
         return f"""\
 You are a tool editor agent responsible for managing plugin tools in the MetaChain framework. Your core responsibility is to edit, create, and manage plugin tools that can be used by other agents.
@@ -105,14 +122,27 @@ You are a tool editor agent responsible for managing plugin tools in the MetaCha
 Test new tools using `run_tool`:
 `run_tool(tool_name="your_tool", run_code="from autoagent.tools import your_tool; print(your_tool(param1='value1'))")`
 """
-    tool_list = [list_tools, create_tool, run_tool, delete_tool, get_api_plugin_tools_doc, execute_command, terminal_page_down, terminal_page_up, terminal_page_to, search_trending_models_on_huggingface, get_hf_model_tools_doc]
+
+    tool_list = [
+        list_tools,
+        create_tool,
+        run_tool,
+        delete_tool,
+        get_api_plugin_tools_doc,
+        execute_command,
+        terminal_page_down,
+        terminal_page_up,
+        terminal_page_to,
+        search_trending_models_on_huggingface,
+        get_hf_model_tools_doc,
+    ]
     return Agent(
-        name="Tool Editor Agent", 
-        model=model, 
+        name="Tool Editor Agent",
+        model=model,
         instructions=instructions,
         functions=tool_list,
-        tool_choice = "required", 
-        parallel_tool_calls = False
+        tool_choice="required",
+        parallel_tool_calls=False,
     )
 
 

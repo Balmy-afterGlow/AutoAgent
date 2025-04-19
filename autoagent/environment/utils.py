@@ -1,15 +1,17 @@
 from autoagent.util import run_command_in_container
 from .docker_env import DockerEnv
 from autoagent.io_utils import print_stream
+
+
 def setup_metachain(workplace_name: str, env: DockerEnv):
     cmd = "pip list | grep autoagent"
     response = env.run_command(cmd, print_stream)
-    if response['status'] == 0:
+    if response["status"] == 0:
         print("AutoAgent is already installed.")
         return
     cmd = f"cd /{workplace_name}/AutoAgent && pip install -e ."
     response = env.run_command(cmd, print_stream)
-    if response['status'] == 0:
+    if response["status"] == 0:
         print("AutoAgent is installed.")
         return
     else:

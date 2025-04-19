@@ -38,4 +38,4 @@ class Result(BaseModel):
     value: str = ""
     agent: Optional[Agent] = None
     context_variables: dict = {}
-    image: Optional[str] = None # base64 encoded image
+    image: Optional[str] = None  # base64 encoded image

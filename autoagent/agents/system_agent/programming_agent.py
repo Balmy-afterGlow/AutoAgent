@@ -1,6 +1,16 @@
 from autoagent.types import Agent
 from autoagent.tools import (
-    gen_code_tree_structure, execute_command, read_file, create_file, write_file, list_files, create_directory, run_python, terminal_page_up, terminal_page_down, terminal_page_to
+    gen_code_tree_structure,
+    execute_command,
+    read_file,
+    create_file,
+    write_file,
+    list_files,
+    create_directory,
+    run_python,
+    terminal_page_up,
+    terminal_page_down,
+    terminal_page_to,
 )
 from autoagent.util import make_message, make_tool_message
 from autoagent.registry import register_agent, register_plugin_agent
@@ -8,13 +18,29 @@ from constant import LOCAL_ROOT, DOCKER_WORKPLACE_NAME
 from autoagent.environment import DockerEnv, BrowserEnv, LocalEnv
 from typing import Union
 from inspect import signature
+
+
 def examples(context_variables):
     working_dir = context_variables.get("working_dir", None)
     examples_list = []
-    examples_list.extend(make_message('user', "Create a list of numbers from 1 to 10, and display them in a web page at port 5000."))
-    examples_list.extend(make_message('assistant', "I should first use create_file to write the python code into a file named 'app.py' for starting a web server"))
-    examples_list.extend(make_tool_message(create_file, {'path': f"/{working_dir}/app.py", 
-            'content': """
+    examples_list.extend(
+        make_message(
+            "user",
+            "Create a list of numbers from 1 to 10, and display them in a web page at port 5000.",
+        )
+    )
+    examples_list.extend(
+        make_message(
+            "assistant",
+            "I should first use create_file to write the python code into a file named 'app.py' for starting a web server",
+        )
+    )
+    examples_list.extend(
+        make_tool_message(
+            create_file,
+            {
+                "path": f"/{working_dir}/app.py",
+                "content": """
 from flask import Flask
 app = Flask(__name__)
 
@@ -24,15 +50,39 @@ def index():
     return str(numbers)
 
 if __name__ == '__main__':
-    app.run(port=5000)"""}, f"File created at: /{working_dir}/app.py"))
-    examples_list.extend(make_message('assistant', 'I have created a Python file `app.py` that will display a list of numbers from 1 to 10 when you run it. Let me run the Python file for you using `run_python`'))
-    examples_list.extend(make_tool_message(run_python, {'code_path': f"/{working_dir}/app.py"}, f"""
+    app.run(port=5000)""",
+            },
+            f"File created at: /{working_dir}/app.py",
+        )
+    )
+    examples_list.extend(
+        make_message(
+            "assistant",
+            "I have created a Python file `app.py` that will display a list of numbers from 1 to 10 when you run it. Let me run the Python file for you using `run_python`",
+        )
+    )
+    examples_list.extend(
+        make_tool_message(
+            run_python,
+            {"code_path": f"/{working_dir}/app.py"},
+            f"""
 Traceback (most recent call last):
   File "/{working_dir}/app.py", line 2, in <module>
     from flask import Flask
-ModuleNotFoundError: No module named 'flask'"""))
-    examples_list.extend(make_message('assistant', "It seems that Flask is not installed. Let me install Flask for you using `execute_command` by the command: pip install flask"))
-    examples_list.extend(make_tool_message(execute_command, {'command': 'pip install flask'}, """Defaulting to user installation because normal site-packages is not writeable
+ModuleNotFoundError: No module named 'flask'""",
+        )
+    )
+    examples_list.extend(
+        make_message(
+            "assistant",
+            "It seems that Flask is not installed. Let me install Flask for you using `execute_command` by the command: pip install flask",
+        )
+    )
+    examples_list.extend(
+        make_tool_message(
+            execute_command,
+            {"command": "pip install flask"},
+            """Defaulting to user installation because normal site-packages is not writeable
 Collecting flask
   Using cached flask-3.0.3-py3-none-any.whl (101 kB)
 Collecting blinker>=1.6.2
@@ -46,22 +96,43 @@ Collecting itsdangerous>=2.1.2
 Requirement already satisfied: Jinja2>=3.1.2 in /home/openhands/.local/lib/python3.10/site-packages (from flask) (3.1.3)
 Requirement already satisfied: MarkupSafe>=2.0 in /home/openhands/.local/lib/python3.10/site-packages (from Jinja2>=3.1.2->flask) (2.1.5)
 Installing collected packages: Werkzeug, itsdangerous, click, blinker, flask
-Successfully installed Werkzeug-3.0.2 blinker-1.7.0 click-8.1.7 flask-3.0.3 itsdangerous-2.2.0"""))
-    examples_list.extend(make_message('assistant', "Now that Flask is installed, let me run the Python file again using `run_python`"))
-    examples_list.extend(make_tool_message(run_python, {'code_path': f"/{working_dir}/app.py"}, """* Serving Flask app 'app'
+Successfully installed Werkzeug-3.0.2 blinker-1.7.0 click-8.1.7 flask-3.0.3 itsdangerous-2.2.0""",
+        )
+    )
+    examples_list.extend(
+        make_message(
+            "assistant",
+            "Now that Flask is installed, let me run the Python file again using `run_python`",
+        )
+    )
+    examples_list.extend(
+        make_tool_message(
+            run_python,
+            {"code_path": f"/{working_dir}/app.py"},
+            """* Serving Flask app 'app'
  * Debug mode: off
 WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
  * Running on http://127.0.0.1:5000
-Press CTRL+C to quit"""))
-    examples_list.extend(make_message('assistant', """The server is running on port 5000 with PID 124. You can access the list of numbers by visiting http://127.0.0.1:5000. Your task is completed."""))
+Press CTRL+C to quit""",
+        )
+    )
+    examples_list.extend(
+        make_message(
+            "assistant",
+            """The server is running on port 5000 with PID 124. You can access the list of numbers by visiting http://127.0.0.1:5000. Your task is completed.""",
+        )
+    )
     return examples_list
 
-@register_agent(name= "Coding Agent", func_name="get_coding_agent")
-@register_plugin_agent(name= "Coding Agent", func_name="get_coding_agent")
+
+@register_agent(name="Coding Agent", func_name="get_coding_agent")
+@register_plugin_agent(name="Coding Agent", func_name="get_coding_agent")
 def get_coding_agent(model: str, **kwargs):
     def instructions(context_variables):
-      code_env: Union[DockerEnv, LocalEnv] = context_variables.get("code_env", LocalEnv())
-      return f"""You are a helpful programming assistant that can write and execute code. You are working in the folder: `{code_env.docker_workplace}`, and you can only access the files in this folder.
+        code_env: Union[DockerEnv, LocalEnv] = context_variables.get(
+            "code_env", LocalEnv()
+        )
+        return f"""You are a helpful programming assistant that can write and execute code. You are working in the folder: `{code_env.docker_workplace}`, and you can only access the files in this folder.
 
   Your can leverage your capabilities by using the specific functions listed below:
 
@@ -85,14 +156,27 @@ def get_coding_agent(model: str, **kwargs):
 
   [IMPORTANT] You can only complete the task by coding. Talk is cheap, show me the code with tools.
   """
-    tool_list = [gen_code_tree_structure, execute_command, read_file, create_file, write_file, list_files, create_directory, run_python, terminal_page_up, terminal_page_down, terminal_page_to]
-    
+
+    tool_list = [
+        gen_code_tree_structure,
+        execute_command,
+        read_file,
+        create_file,
+        write_file,
+        list_files,
+        create_directory,
+        run_python,
+        terminal_page_up,
+        terminal_page_down,
+        terminal_page_to,
+    ]
+
     return Agent(
-    name="Coding Agent",
-    model=model,
-    instructions=instructions,
-    functions=tool_list,
-    # examples=examples,
-    tool_choice = "required", 
-    parallel_tool_calls = False
+        name="Coding Agent",
+        model=model,
+        instructions=instructions,
+        functions=tool_list,
+        # examples=examples,
+        tool_choice="required",
+        parallel_tool_calls=False,
     )

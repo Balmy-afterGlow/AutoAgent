@@ -14,6 +14,7 @@ from lm_eval.tasks.minerva_math.utils import (
 import yaml
 import argparse
 
+
 def load_yaml(path: Path):
     with open(path, "r") as f:
         data = yaml.load(f, Loader=yaml.CLoader)
@@ -57,6 +58,7 @@ def is_correct_gsm8k(model_completion, gt_example):
     model_answer = extract_answer_gsm8k(model_completion)
     return model_answer == gt_answer or is_equiv(model_answer, gt_answer)
 
+
 def my_get_unnormalized_answer(og_pred):
     og_pred = get_unnormalized_answer(og_pred)
     print(og_pred)
@@ -73,8 +75,6 @@ def is_correct_minerva(og_pred, gt):
     return pred == gt or is_equiv(pred, gt)
 
 
-
-
 def is_correct(sample: str, gt_answer: str, dset: str):
     if dset == "gsm8k":
         return is_correct_gsm8k(sample, gt_answer)
@@ -82,8 +82,6 @@ def is_correct(sample: str, gt_answer: str, dset: str):
         return is_correct_minerva(sample, gt_answer)
     else:
         raise ValueError(f"Dataset {dset} not supported")
-
-
 
 
 def get_tasks(config):
@@ -106,12 +104,11 @@ def main(args):
 
     tasks = Path(args.save_dir).glob("*.yaml")
 
-
     corrects = []
 
     for task in tqdm(tasks, desc="Evaluating"):
         result = load_yaml(task)
-    
+
         correct = is_correct(result["answer"], result["gt_answer"], "math")
         corrects.append(correct)
 
@@ -120,6 +117,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--save_dir", type=str, default="evaluation_results/math500/math_solver")
+    parser.add_argument(
+        "--save_dir", type=str, default="evaluation_results/math500/math_solver"
+    )
     args = parser.parse_args()
     main(args)

@@ -1,6 +1,17 @@
 from autoagent.registry import register_agent
-from autoagent.tools.meta.edit_agents import list_agents, create_agent, delete_agent, run_agent, read_agent
-from autoagent.tools.meta.edit_tools import list_tools, create_tool, delete_tool, run_tool
+from autoagent.tools.meta.edit_agents import (
+    list_agents,
+    create_agent,
+    delete_agent,
+    run_agent,
+    read_agent,
+)
+from autoagent.tools.meta.edit_tools import (
+    list_tools,
+    create_tool,
+    delete_tool,
+    run_tool,
+)
 from autoagent.tools.meta.edit_workflow import list_workflows
 from autoagent.tools.terminal_tools import execute_command
 from autoagent.types import Agent
@@ -10,17 +21,19 @@ from typing import List
 import json
 
 
-@register_agent(name = "Workflow Former Agent", func_name="get_workflow_former_agent")
+@register_agent(name="Workflow Former Agent", func_name="get_workflow_former_agent")
 def get_workflow_former_agent(model: str) -> str:
     """
     This agent is used to complete a form that can be used to create a workflow consisting of multiple agents.
     """
+
     def instructions(context_variables):
         workflow_list = list_workflows(context_variables)
         workflow_list = json.loads(workflow_list)
         workflow_list = [workflow_name for workflow_name in workflow_list.keys()]
         workflow_list_str = ", ".join(workflow_list)
-        return r"""\
+        return (
+            r"""\
 You are an agent specialized in creating workflow forms for the MetaChain framework.
 
 Your task is to analyze user requests and generate structured creation forms for workflows consisting of multiple agents.
@@ -173,8 +186,8 @@ IMPORTANT RULES:
 4. Omit tools section when:
    - Using existing agents (category="existing") OR
    - Creating new agents without specific tool requirements
-""" + \
-f"""
+"""
+            + f"""
 Existing tools you can use is: 
 {list_tools(context_variables)}
 
@@ -182,8 +195,8 @@ Existing agents you can use is:
 {list_agents(context_variables)}
 
 The name of existing workflows: [{workflow_list_str}]. The name of the new workflow you are creating should be DIFFERENT from these names according to the speciality of the workflow.
-""" + \
-r"""
+"""
+            + r"""
 COMMON WORKFLOW PATTERNS:
 
 1. If-Else Pattern (Conditional Branching):
@@ -344,8 +357,8 @@ IMPORTANT NOTES ON PATTERNS:
    - Include clear evaluation criteria in conditions
    - Have both success and retry paths
    - Consider adding maximum iteration limit in global_variables
-""" + \
-r"""
+"""
+            + r"""
 EXAMPLE:
 
 User: I want to build a workflow that can help me to write a wikipiead-like article about the user's topic. It should:
@@ -541,25 +554,29 @@ GUIDELINES:
 
 Follow these examples and guidelines to create appropriate workflow forms based on user requirements.
 """
+        )
+
     return Agent(
-        name = "Workflow Former Agent",
-        model = model,
-        instructions = instructions,
+        name="Workflow Former Agent",
+        model=model,
+        instructions=instructions,
     )
+
 
 if __name__ == "__main__":
     from autoagent import MetaChain
+
     agent = get_workflow_former_agent("claude-3-5-sonnet-20241022")
     client = MetaChain()
-#     task_yaml = """\
-# I want to create a workflow that can help me to solving the math problem.
+    #     task_yaml = """\
+    # I want to create a workflow that can help me to solving the math problem.
 
-# The workflow should:
-# 2. Parallelize solving the math problem with the same `Math Solver Agent` using different language models (`gpt-4o-2024-08-06`, `claude-3-5-sonnet-20241022`, `deepseek/deepseek-chat`)
-# 3. Aggregate the results from the `Math Solver Agent` and return the final result using majority voting.
+    # The workflow should:
+    # 2. Parallelize solving the math problem with the same `Math Solver Agent` using different language models (`gpt-4o-2024-08-06`, `claude-3-5-sonnet-20241022`, `deepseek/deepseek-chat`)
+    # 3. Aggregate the results from the `Math Solver Agent` and return the final result using majority voting.
 
-# Please create the form of this workflow in the XML format.
-# """
+    # Please create the form of this workflow in the XML format.
+    # """
     task_yaml = """\
 I want to create a workflow that can help me to solving the math problem.
 
@@ -570,9 +587,12 @@ The workflow should:
 
 Please create the form of this workflow in the XML format.
 """
-    task_yaml = task_yaml + """\
+    task_yaml = (
+        task_yaml
+        + """\
 Directly output the form in the XML format.
 """
+    )
     messages = [{"role": "user", "content": task_yaml}]
     response = client.run(agent, messages)
     print(response.messages[-1]["content"])

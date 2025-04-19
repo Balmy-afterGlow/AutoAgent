@@ -4,6 +4,8 @@ from autoagent.environment import DockerEnv, LocalEnv
 from autoagent.io_utils import compress_folder, get_file_md5
 from autoagent.registry import register_tool
 from typing import Union
+
+
 @register_tool("code_rag")
 def code_rag(query_text: str, context_variables) -> str:
     """
@@ -14,7 +16,12 @@ def code_rag(query_text: str, context_variables) -> str:
         A string representation of the reranked results.
     """
     env: Union[DockerEnv, LocalEnv] = context_variables.get("code_env", LocalEnv())
-    code_memory = CodeMemory(project_path = './code_db', platform='OpenAI', api_key=os.getenv("OPENAI_API_KEY"),embedding_model='text-embedding-3-small')
+    code_memory = CodeMemory(
+        project_path="./code_db",
+        platform="OpenAI",
+        api_key=os.getenv("OPENAI_API_KEY"),
+        embedding_model="text-embedding-3-small",
+    )
     code_reranker = CodeReranker(model="gpt-4o-2024-08-06")
     code_path = f"{env.local_workplace}/autoagent"
     compress_folder(code_path, f"{env.local_workplace}/", "autoagent.zip")
@@ -22,11 +29,11 @@ def code_rag(query_text: str, context_variables) -> str:
     code_memory.collection_name = code_memory.collection_name + f"_{code_id}"
 
     if code_memory.count() == 0:
-        code_memory.add_code_files(f"{env.local_workplace}/autoagent", exclude_prefix=['__pycache__', 'code_db', '.git'])
+        code_memory.add_code_files(
+            f"{env.local_workplace}/autoagent",
+            exclude_prefix=["__pycache__", "code_db", ".git"],
+        )
 
     query_results = code_memory.query_code(query_text, n_results=20)
     reranked_results = code_reranker.rerank(query_text, query_results)
     return reranked_results
-    
-    
-

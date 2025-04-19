@@ -5,6 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class EvalMetadata(BaseModel):
     agent_func: str
     model: str
@@ -26,9 +27,10 @@ class EvalMetadata(BaseModel):
     def model_dump_json(self, *args, **kwargs):
         dumped = super().model_dump_json(*args, **kwargs)
         dumped_dict = json.loads(dumped)
-        logger.debug(f'Dumped metadata: {dumped_dict}')
+        logger.debug(f"Dumped metadata: {dumped_dict}")
         return json.dumps(dumped_dict)
-    
+
+
 class EvalOutput(BaseModel):
     # NOTE: User-specified
     instance_id: str
@@ -53,13 +55,13 @@ class EvalOutput(BaseModel):
         dumped_dict = {k: v for k, v in dumped_dict.items() if v is not None}
         # Apply custom serialization for metadata (to avoid leaking sensitive information)
         if self.metadata is not None:
-            dumped_dict['metadata'] = self.metadata.model_dump()
+            dumped_dict["metadata"] = self.metadata.model_dump()
         return dumped_dict
 
     def model_dump_json(self, *args, **kwargs):
         dumped = super().model_dump_json(*args, **kwargs)
         dumped_dict = json.loads(dumped)
         # Apply custom serialization for metadata (to avoid leaking sensitive information)
-        if 'metadata' in dumped_dict:
-            dumped_dict['metadata'] = json.loads(self.metadata.model_dump_json())
+        if "metadata" in dumped_dict:
+            dumped_dict["metadata"] = json.loads(self.metadata.model_dump_json())
         return json.dumps(dumped_dict)

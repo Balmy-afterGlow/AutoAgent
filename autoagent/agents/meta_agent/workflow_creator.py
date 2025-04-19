@@ -1,16 +1,33 @@
 from autoagent.registry import register_agent
-from autoagent.tools.meta.edit_agents import list_agents, create_agent, delete_agent, run_agent, read_agent, create_orchestrator_agent
-from autoagent.tools.meta.edit_workflow import list_workflows, create_workflow, run_workflow
-from autoagent.tools.terminal_tools import execute_command, terminal_page_down, terminal_page_up, terminal_page_to
+from autoagent.tools.meta.edit_agents import (
+    list_agents,
+    create_agent,
+    delete_agent,
+    run_agent,
+    read_agent,
+    create_orchestrator_agent,
+)
+from autoagent.tools.meta.edit_workflow import (
+    list_workflows,
+    create_workflow,
+    run_workflow,
+)
+from autoagent.tools.terminal_tools import (
+    execute_command,
+    terminal_page_down,
+    terminal_page_up,
+    terminal_page_to,
+)
 from autoagent.types import Agent
 from autoagent.io_utils import read_file
 
 
-@register_agent(name = "Workflow Creator Agent", func_name="get_workflow_creator_agent")
+@register_agent(name="Workflow Creator Agent", func_name="get_workflow_creator_agent")
 def get_workflow_creator_agent(model: str) -> str:
     """
     The workflow creator is an agent that can be used to create the workflow.
     """
+
     def instructions(context_variables):
         return f"""\
 You are a Workflow Creator specialized in the MetaChain framework. Your primary responsibility is to create and manage workflows based on XML-formatted workflow forms.
@@ -68,14 +85,24 @@ BEST PRACTICES:
 
 Remember: Your primary goal is to create and execute workflows according to the provided workflow forms, creating any necessary agents along the way.
 """
-    tool_list = [list_agents, create_agent, execute_command, read_agent, terminal_page_down, terminal_page_up, terminal_page_to, list_workflows, create_workflow, run_workflow]
+
+    tool_list = [
+        list_agents,
+        create_agent,
+        execute_command,
+        read_agent,
+        terminal_page_down,
+        terminal_page_up,
+        terminal_page_to,
+        list_workflows,
+        create_workflow,
+        run_workflow,
+    ]
     return Agent(
-        name="Workflow Creator Agent", 
-        model=model, 
+        name="Workflow Creator Agent",
+        model=model,
         instructions=instructions,
         functions=tool_list,
-        tool_choice = "required", 
-        parallel_tool_calls = False
+        tool_choice="required",
+        parallel_tool_calls=False,
     )
-
-

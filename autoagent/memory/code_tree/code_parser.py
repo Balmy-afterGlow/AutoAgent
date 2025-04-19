@@ -5,6 +5,7 @@ import glob
 import uuid
 from loguru import logger
 
+
 @dataclasses.dataclass
 class Snippet:
     """Dataclass for storing Embedded Snippets"""
@@ -96,7 +97,8 @@ class CodeParser:
             parsed_contents.extend(parsed_content)
 
         return parsed_contents
-    
+
+
 def to_dataframe_row(embedded_snippets: list[Snippet]):
     """
     Helper function to convert Embedded Snippet object to a dataframe row

@@ -1,5 +1,7 @@
 import tiktoken
+
 ENCODER = None
+
 
 def encode_string_by_tiktoken(content: str, model_name: str = "gpt-4o"):
     global ENCODER
@@ -15,6 +17,8 @@ def decode_tokens_by_tiktoken(tokens: list[int], model_name: str = "gpt-4o"):
         ENCODER = tiktoken.encoding_for_model(model_name)
     content = ENCODER.decode(tokens)
     return content
+
+
 def chunking_by_token_size(
     content: str, overlap_token_size=128, max_token_size=1024, tiktoken_model="gpt-4o"
 ):

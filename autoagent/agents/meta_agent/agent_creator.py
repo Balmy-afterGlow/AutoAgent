@@ -1,16 +1,34 @@
 from autoagent.registry import register_agent
-from autoagent.tools.meta.edit_agents import list_agents, create_agent, delete_agent, run_agent, read_agent, create_orchestrator_agent
-from autoagent.tools.meta.edit_tools import list_tools, create_tool, delete_tool, run_tool
-from autoagent.tools.terminal_tools import execute_command, terminal_page_down, terminal_page_up, terminal_page_to
+from autoagent.tools.meta.edit_agents import (
+    list_agents,
+    create_agent,
+    delete_agent,
+    run_agent,
+    read_agent,
+    create_orchestrator_agent,
+)
+from autoagent.tools.meta.edit_tools import (
+    list_tools,
+    create_tool,
+    delete_tool,
+    run_tool,
+)
+from autoagent.tools.terminal_tools import (
+    execute_command,
+    terminal_page_down,
+    terminal_page_up,
+    terminal_page_to,
+)
 from autoagent.types import Agent
 from autoagent.io_utils import read_file
 
 
-@register_agent(name = "Agent Creator Agent", func_name="get_agent_creator_agent")
+@register_agent(name="Agent Creator Agent", func_name="get_agent_creator_agent")
 def get_agent_creator_agent(model: str) -> str:
     """
     The agent creator is an agent that can be used to create the agents.
     """
+
     def instructions(context_variables):
         return f"""\
 You are an Agent Creator specialized in the MetaChain framework. Your primary responsibility is to create, manage, and orchestrate agents based on XML-formatted agent forms.
@@ -65,14 +83,24 @@ BEST PRACTICES:
 
 Remember: Your success is measured by both the accurate creation of agents and their effective execution of the given tasks.
 """
-    tool_list = [list_agents, create_agent, delete_agent, run_agent, execute_command, read_agent, create_orchestrator_agent, terminal_page_down, terminal_page_up, terminal_page_to]
+
+    tool_list = [
+        list_agents,
+        create_agent,
+        delete_agent,
+        run_agent,
+        execute_command,
+        read_agent,
+        create_orchestrator_agent,
+        terminal_page_down,
+        terminal_page_up,
+        terminal_page_to,
+    ]
     return Agent(
-        name="Agent Creator Agent", 
-        model=model, 
+        name="Agent Creator Agent",
+        model=model,
         instructions=instructions,
         functions=tool_list,
-        tool_choice = "required", 
-        parallel_tool_calls = False
+        tool_choice="required",
+        parallel_tool_calls=False,
     )
-
-

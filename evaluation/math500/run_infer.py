@@ -6,7 +6,7 @@ import random
 import requests
 from functools import partial
 import argparse
-from pathlib import Path    
+from pathlib import Path
 import yaml
 from metachain.agents.math.math_solver_agent import get_math_solver_agent
 from metachain import MetaChain
@@ -21,13 +21,17 @@ def save_yaml(path: Path, data, sort_keys=True):
     with open(path, "w") as f:
         yaml.dump(data, f, sort_keys=sort_keys)
 
+
 async def run_inference(item, save_dir, workflow):
 
     outpath = save_dir / f"{item['id']}.yaml"
     if outpath.exists():
         return
 
-    prompt = MATH_COT_PROMPT + f"\n\nProblem:\n{item['problem']}\n\nYour task is to solve this problem."
+    prompt = (
+        MATH_COT_PROMPT
+        + f"\n\nProblem:\n{item['problem']}\n\nYour task is to solve this problem."
+    )
     prompt += "Please given your final answer (answer ONLY) within the format of `Final Answer: The final answer is <answer>. I hope it is correct.` after your reasoning \n"
     prompt += "For example: According to ...\nFinal Answer: The final answer is $24$. I hope it is correct.\n"
 
@@ -39,12 +43,12 @@ async def run_inference(item, save_dir, workflow):
         messages = [
             {"role": "user", "content": prompt},
         ]
-        context_variables = {
-        }
+        context_variables = {}
 
         response = await client.run_async(agent, messages, context_variables)
-        answer = response.messages[-1]['content']
-    else: raise ValueError(f"Unknown workflow: {workflow}")
+        answer = response.messages[-1]["content"]
+    else:
+        raise ValueError(f"Unknown workflow: {workflow}")
 
     out = {
         "prompt": prompt,
@@ -67,7 +71,6 @@ async def main(args):
     print(f"Number of test items: {len(test_dataset)}")
 
     random.seed(12345)
-
 
     for i, data in enumerate(test_dataset):
         data["id"] = i
@@ -103,11 +106,10 @@ async def main(args):
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
 
-    
-
     predictions = []
     for item in tqdm(test_dataset):
         predictions.append(await run_inference(item, save_dir, args.workflow))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

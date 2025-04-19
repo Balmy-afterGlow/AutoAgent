@@ -1,4 +1,9 @@
-from browsergym.utils.obs import _process_bid, IGNORED_AXTREE_ROLES, IGNORED_AXTREE_PROPERTIES
+from browsergym.utils.obs import (
+    _process_bid,
+    IGNORED_AXTREE_ROLES,
+    IGNORED_AXTREE_PROPERTIES,
+)
+
 
 def flatten_md_axtree_to_str(
     AX_tree,
@@ -26,13 +31,17 @@ def flatten_md_axtree_to_str(
         node_id_to_idx[node["nodeId"]] = idx
     # print("******************************* AX_tree:", AX_tree)
 
-    def dfs(node_idx: int, depth: int, parent_node_filtered: bool, parent_node_name: str) -> str:
+    def dfs(
+        node_idx: int, depth: int, parent_node_filtered: bool, parent_node_name: str
+    ) -> str:
         tree_str = ""
         node = AX_tree["nodes"][node_idx]
         # indent = "\t" * depth
         indent = ""
         skip_node = False  # node will not be printed, with no effect on children nodes
-        filter_node = False  # node will not be printed, possibly along with its children nodes
+        filter_node = (
+            False  # node will not be printed, possibly along with its children nodes
+        )
         node_role = node["role"]["value"]
         node_name = ""
 
@@ -149,6 +158,7 @@ def flatten_md_axtree_to_str(
     tree_str = dfs(0, 1, False, "")
     return tree_str
 
+
 # def flatten_md_axtree_to_str(
 #     AX_tree,
 #     extra_properties: dict = None,
@@ -172,7 +182,7 @@ def flatten_md_axtree_to_str(
 #     """Formats the accessibility tree into a markdown string"""
 #     if not AX_tree or "nodes" not in AX_tree or not AX_tree["nodes"]:
 #         return "No content available"
-        
+
 #     node_id_to_idx = {}
 #     for idx, node in enumerate(AX_tree["nodes"]):
 #         node_id_to_idx[node["nodeId"]] = idx
@@ -180,7 +190,7 @@ def flatten_md_axtree_to_str(
 #     def dfs(node_idx: int, depth: int, parent_node_filtered: bool, parent_node_name: str) -> str:
 #         tree_str = ""
 #         node = AX_tree["nodes"][node_idx]
-        
+
 #         # 处理节点内容
 #         if "name" in node and "value" in node["name"]:
 #             content = node["name"]["value"].strip()
@@ -189,7 +199,7 @@ def flatten_md_axtree_to_str(
 #                 content = ' '.join(content.split())
 #                 # 添加到输出
 #                 tree_str += content + "\n"
-        
+
 #         # 递归处理子节点
 #         for child_node_id in node.get("childIds", []):
 #             if child_node_id in node_id_to_idx and child_node_id != node["nodeId"]:

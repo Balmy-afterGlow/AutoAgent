@@ -14,6 +14,7 @@ if __name__ == "__main__":
     server.listen(1)
 
     print("Listening on port 12345...")
+
     def receive_all(conn, buffer_size=4096):
         data = b""
         while True:
@@ -32,18 +33,24 @@ if __name__ == "__main__":
             command = receive_all(conn)
             if not command:
                 break
-            
+
             # Execute the command
             try:
                 modified_command = f"/bin/bash -c 'source /home/user/micromamba/etc/profile.d/conda.sh && conda activate autogpt && cd /{args.workplace} && {command}'"
-                process = subprocess.Popen(modified_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-                output = ''
+                process = subprocess.Popen(
+                    modified_command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
+                output = ""
                 while True:
                     line = process.stdout.readline()
                     if not line and process.poll() is not None:
                         break
                     output += line
-                    print(line, end='')
+                    print(line, end="")
 
                 exit_code = process.wait()
             except Exception as e:
@@ -51,11 +58,8 @@ if __name__ == "__main__":
                 output = f"Error running command: {str(e)}"
 
             # Create a JSON response
-            response = {
-                "status": exit_code,
-                "result": output
-            }
-            
+            response = {"status": exit_code, "result": output}
+
             # Send the JSON response
             conn.send(json.dumps(response).encode())
         conn.close()

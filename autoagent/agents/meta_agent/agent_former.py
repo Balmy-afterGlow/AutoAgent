@@ -1,6 +1,17 @@
 from autoagent.registry import register_agent
-from autoagent.tools.meta.edit_agents import list_agents, create_agent, delete_agent, run_agent, read_agent
-from autoagent.tools.meta.edit_tools import list_tools, create_tool, delete_tool, run_tool
+from autoagent.tools.meta.edit_agents import (
+    list_agents,
+    create_agent,
+    delete_agent,
+    run_agent,
+    read_agent,
+)
+from autoagent.tools.meta.edit_tools import (
+    list_tools,
+    create_tool,
+    delete_tool,
+    run_tool,
+)
 from autoagent.tools.terminal_tools import execute_command
 from autoagent.types import Agent
 from autoagent.io_utils import read_file
@@ -8,13 +19,15 @@ from pydantic import BaseModel, Field
 from typing import List
 
 
-@register_agent(name = "Agent Former Agent", func_name="get_agent_former_agent")
+@register_agent(name="Agent Former Agent", func_name="get_agent_former_agent")
 def get_agent_former_agent(model: str) -> str:
     """
     This agent is used to complete a form that can be used to create an agent.
     """
+
     def instructions(context_variables):
-        return r"""\
+        return (
+            r"""\
 You are an agent specialized in creating agent forms for the MetaChain framework.
 
 Your task is to analyze user requests and generate structured creation forms for either single or multi-agent systems.
@@ -73,15 +86,15 @@ IMPORTANT RULES:
   * system_input should describe the complete input space
   * Each agent_input should specify which subset of the system_input it handles
   * system_output should represent the unified response format
-""" + \
-f"""
+"""
+            + f"""
 Existing tools you can use is: 
 {list_tools(context_variables)}
 
 Existing agents you can use is: 
 {list_agents(context_variables)}
-""" + \
-r"""
+"""
+            + r"""
 EXAMPLE 1 - SINGLE AGENT:
 
 User: I want to build an agent that can answer the user's question about the OpenAI products. The document of the OpenAI products is available at `/workspace/docs/openai_products/`.
@@ -231,14 +244,18 @@ GUIDELINES:
 
 Follow these examples and guidelines to create appropriate agent forms based on user requirements.
 """
+        )
+
     return Agent(
-        name = "Agent Former Agent",
-        model = model,
-        instructions = instructions,
+        name="Agent Former Agent",
+        model=model,
+        instructions=instructions,
     )
+
 
 if __name__ == "__main__":
     from autoagent import MetaChain
+
     agent = get_agent_former_agent("claude-3-5-sonnet-20241022")
     client = MetaChain()
     task_yaml = """\
@@ -249,9 +266,12 @@ I want to create two agents that can help me to do two kinds of tasks:
 - get cash flow statements for a given ticker over a given period.
 - get income statements for a given ticker over a given period.
 """
-    task_yaml = task_yaml + """\
+    task_yaml = (
+        task_yaml
+        + """\
 Directly output the form in the XML format.
 """
+    )
     messages = [{"role": "user", "content": task_yaml}]
     response = client.run(agent, messages)
     print(response.messages[-1]["content"])

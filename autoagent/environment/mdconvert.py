@@ -1,6 +1,7 @@
-
 from browsergym.core.action.functions import goto, page
 from autoagent.environment.markdown_browser import MarkdownConverter
+
+
 def _get_page_markdown():
     """
     Get the markdown content of the current page
@@ -54,7 +55,6 @@ def _get_page_markdown():
     except ModuleNotFoundError:
         pass
 
-
     class _CustomMarkdownify(markdownify.MarkdownConverter):
         """
         A custom version of markdownify's MarkdownConverter. Changes include:
@@ -70,7 +70,9 @@ def _get_page_markdown():
             # Explicitly cast options to the expected type if necessary
             super().__init__(**options)
 
-        def convert_hn(self, n: int, el: Any, text: str, convert_as_inline: bool) -> str:
+        def convert_hn(
+            self, n: int, el: Any, text: str, convert_as_inline: bool
+        ) -> str:
             """Same as usual, but be sure to start with a new line"""
             if not convert_as_inline:
                 if not re.search(r"^\n", text):
@@ -108,7 +110,11 @@ def _get_page_markdown():
             if self.options["default_title"] and not title:
                 title = href
             title_part = ' "%s"' % title.replace('"', r"\"") if title else ""
-            return "%s[%s](%s%s)%s" % (prefix, text, href, title_part, suffix) if href else text
+            return (
+                "%s[%s](%s%s)%s" % (prefix, text, href, title_part, suffix)
+                if href
+                else text
+            )
 
         def convert_img(self, el: Any, text: str, convert_as_inline: bool) -> str:
             """Same as usual converter, but removes data URIs"""
@@ -117,7 +123,10 @@ def _get_page_markdown():
             src = el.attrs.get("src", None) or ""
             title = el.attrs.get("title", None) or ""
             title_part = ' "%s"' % title.replace('"', r"\"") if title else ""
-            if convert_as_inline and el.parent.name not in self.options["keep_inline_images_in"]:
+            if (
+                convert_as_inline
+                and el.parent.name not in self.options["keep_inline_images_in"]
+            ):
                 return alt
 
             # Remove dataURIs
@@ -129,7 +138,6 @@ def _get_page_markdown():
         def convert_soup(self, soup: Any) -> str:
             return super().convert_soup(soup)  # type: ignore
 
-
     class DocumentConverterResult:
         """The result of converting a document to text."""
 
@@ -137,20 +145,24 @@ def _get_page_markdown():
             self.title: Union[str, None] = title
             self.text_content: str = text_content
 
-
     class DocumentConverter:
         """Abstract superclass of all DocumentConverters."""
 
-        def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
+        def convert(
+            self, local_path: str, **kwargs: Any
+        ) -> Union[None, DocumentConverterResult]:
             raise NotImplementedError()
-
 
     class PlainTextConverter(DocumentConverter):
         """Anything with content type text/plain"""
 
-        def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
+        def convert(
+            self, local_path: str, **kwargs: Any
+        ) -> Union[None, DocumentConverterResult]:
             # Guess the content type from any file extension that might be around
-            content_type, _ = mimetypes.guess_type("__placeholder" + kwargs.get("file_extension", ""))
+            content_type, _ = mimetypes.guess_type(
+                "__placeholder" + kwargs.get("file_extension", "")
+            )
 
             # Only accept text files
             if content_type is None:
@@ -166,11 +178,12 @@ def _get_page_markdown():
                 text_content=text_content,
             )
 
-
     class HtmlConverter(DocumentConverter):
         """Anything with content type text/html"""
 
-        def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
+        def convert(
+            self, local_path: str, **kwargs: Any
+        ) -> Union[None, DocumentConverterResult]:
             # Bail if not html
             extension = kwargs.get("file_extension", "")
             if extension.lower() not in [".html", ".htm"]:
@@ -203,14 +216,16 @@ def _get_page_markdown():
             assert isinstance(webpage_text, str)
 
             return DocumentConverterResult(
-                title=None if soup.title is None else soup.title.string, text_content=webpage_text
+                title=None if soup.title is None else soup.title.string,
+                text_content=webpage_text,
             )
-
 
     class WikipediaConverter(DocumentConverter):
         """Handle Wikipedia pages separately, focusing only on the main document content."""
 
-        def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
+        def convert(
+            self, local_path: str, **kwargs: Any
+        ) -> Union[None, DocumentConverterResult]:
             # Bail if not Wikipedia
             extension = kwargs.get("file_extension", "")
             if extension.lower() not in [".html", ".htm"]:
@@ -242,7 +257,9 @@ def _get_page_markdown():
                     assert isinstance(main_title, str)
 
                 # Convert the page
-                webpage_text = f"# {main_title}\n\n" + _CustomMarkdownify().convert_soup(body_elm)
+                webpage_text = (
+                    f"# {main_title}\n\n" + _CustomMarkdownify().convert_soup(body_elm)
+                )
             else:
                 webpage_text = _CustomMarkdownify().convert_soup(soup)
 
@@ -251,11 +268,12 @@ def _get_page_markdown():
                 text_content=webpage_text,
             )
 
-
     class YouTubeConverter(DocumentConverter):
         """Handle YouTube specially, focusing on the video title, description, and transcript."""
 
-        def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
+        def convert(
+            self, local_path: str, **kwargs: Any
+        ) -> Union[None, DocumentConverterResult]:
             # Bail if not YouTube
             extension = kwargs.get("file_extension", "")
             if extension.lower() not in [".html", ".htm"]:
@@ -351,13 +369,20 @@ def _get_page_markdown():
                 text_content=webpage_text,
             )
 
-        def _get(self, metadata: Dict[str, str], keys: List[str], default: Union[str, None] = None) -> Union[str, None]:
+        def _get(
+            self,
+            metadata: Dict[str, str],
+            keys: List[str],
+            default: Union[str, None] = None,
+        ) -> Union[str, None]:
             for k in keys:
                 if k in metadata:
                     return metadata[k]
             return default
 
-        def _findKey(self, json: Any, key: str) -> Union[str, None]:  # TODO: Fix json type
+        def _findKey(
+            self, json: Any, key: str
+        ) -> Union[str, None]:  # TODO: Fix json type
             if isinstance(json, list):
                 for elm in json:
                     ret = self._findKey(elm, key)
@@ -372,7 +397,6 @@ def _get_page_markdown():
                         if ret is not None:
                             return ret
             return None
-
 
     class BingSerpConverter(DocumentConverter):
         """
@@ -417,11 +441,15 @@ def _get_page_markdown():
                     # The destination is contained in the u parameter,
                     # but appears to be base64 encoded, with some prefix
                     if "u" in qs:
-                        u = qs["u"][0][2:].strip() + "=="  # Python 3 doesn't care about extra padding
+                        u = (
+                            qs["u"][0][2:].strip() + "=="
+                        )  # Python 3 doesn't care about extra padding
 
                         try:
                             # RFC 4648 / Base64URL" variant, which uses "-" and "_"
-                            a["href"] = base64.b64decode(u, altchars="-_").decode("utf-8")
+                            a["href"] = base64.b64decode(u, altchars="-_").decode(
+                                "utf-8"
+                            )
                         except UnicodeDecodeError:
                             pass
                         except binascii.Error:
@@ -432,13 +460,15 @@ def _get_page_markdown():
                 lines = [line.strip() for line in re.split(r"\n+", md_result)]
                 results.append("\n".join([line for line in lines if len(line) > 0]))
 
-            webpage_text = f"## A Bing search for '{query}' found the following results:\n\n" + "\n\n".join(results)
+            webpage_text = (
+                f"## A Bing search for '{query}' found the following results:\n\n"
+                + "\n\n".join(results)
+            )
 
             return DocumentConverterResult(
                 title=None if soup.title is None else soup.title.string,
                 text_content=webpage_text,
             )
-
 
     class PdfConverter(DocumentConverter):
         """
@@ -455,7 +485,6 @@ def _get_page_markdown():
                 title=None,
                 text_content=pdfminer.high_level.extract_text(local_path),
             )
-
 
     class DocxConverter(HtmlConverter):
         """
@@ -475,7 +504,6 @@ def _get_page_markdown():
                 result = self._convert(html_content)
 
             return result
-
 
     class XlsxConverter(HtmlConverter):
         """
@@ -499,7 +527,6 @@ def _get_page_markdown():
                 title=None,
                 text_content=md_content.strip(),
             )
-
 
     class PptxConverter(HtmlConverter):
         """
@@ -528,13 +555,21 @@ def _get_page_markdown():
                         # https://github.com/scanny/python-pptx/pull/512#issuecomment-1713100069
                         alt_text = ""
                         try:
-                            alt_text = shape._element._nvXxPr.cNvPr.attrib.get("descr", "")
+                            alt_text = shape._element._nvXxPr.cNvPr.attrib.get(
+                                "descr", ""
+                            )
                         except Exception:
                             pass
 
                         # A placeholder name
                         filename = re.sub(r"\W", "", shape.name) + ".jpg"
-                        md_content += "\n![" + (alt_text if alt_text else shape.name) + "](" + filename + ")\n"
+                        md_content += (
+                            "\n!["
+                            + (alt_text if alt_text else shape.name)
+                            + "]("
+                            + filename
+                            + ")\n"
+                        )
 
                     # Tables
                     if self._is_table(shape):
@@ -544,13 +579,19 @@ def _get_page_markdown():
                             html_table += "<tr>"
                             for cell in row.cells:
                                 if first_row:
-                                    html_table += "<th>" + html.escape(cell.text) + "</th>"
+                                    html_table += (
+                                        "<th>" + html.escape(cell.text) + "</th>"
+                                    )
                                 else:
-                                    html_table += "<td>" + html.escape(cell.text) + "</td>"
+                                    html_table += (
+                                        "<td>" + html.escape(cell.text) + "</td>"
+                                    )
                             html_table += "</tr>"
                             first_row = False
                         html_table += "</table></body></html>"
-                        md_content += "\n" + self._convert(html_table).text_content.strip() + "\n"
+                        md_content += (
+                            "\n" + self._convert(html_table).text_content.strip() + "\n"
+                        )
 
                     # Text areas
                     elif shape.has_text_frame:
@@ -586,7 +627,6 @@ def _get_page_markdown():
                 return True
             return False
 
-
     class MediaConverter(DocumentConverter):
         """
         Abstract class for multi-modal media (e.g., images and audio)
@@ -598,11 +638,12 @@ def _get_page_markdown():
                 return None
             else:
                 try:
-                    result = subprocess.run([exiftool, "-json", local_path], capture_output=True, text=True).stdout
+                    result = subprocess.run(
+                        [exiftool, "-json", local_path], capture_output=True, text=True
+                    ).stdout
                     return json.loads(result)[0]
                 except Exception:
                     return None
-
 
     class WavConverter(MediaConverter):
         """
@@ -655,7 +696,6 @@ def _get_page_markdown():
             with sr.AudioFile(local_path) as source:
                 audio = recognizer.record(source)
                 return recognizer.recognize_google(audio).strip()
-
 
     class Mp3Converter(WavConverter):
         """
@@ -717,7 +757,6 @@ def _get_page_markdown():
                 text_content=md_content.strip(),
             )
 
-
     class ImageConverter(MediaConverter):
         """
         Converts images to markdown via extraction of metadata (if `exiftool` is installed), OCR (if `easyocr` is installed), and description via a multimodal LLM (if an mlm_client is configured).
@@ -756,7 +795,11 @@ def _get_page_markdown():
                 md_content += (
                     "\n# Description:\n"
                     + self._get_mlm_description(
-                        local_path, extension, mlm_client, mlm_model, prompt=kwargs.get("mlm_prompt")
+                        local_path,
+                        extension,
+                        mlm_client,
+                        mlm_model,
+                        prompt=kwargs.get("mlm_prompt"),
                     ).strip()
                     + "\n"
                 )
@@ -766,7 +809,9 @@ def _get_page_markdown():
                 text_content=md_content,
             )
 
-        def _get_mlm_description(self, local_path, extension, client, model, prompt=None):
+        def _get_mlm_description(
+            self, local_path, extension, client, model, prompt=None
+        ):
             if prompt is None or prompt.strip() == "":
                 prompt = "Write a detailed caption for this image."
 
@@ -798,14 +843,11 @@ def _get_page_markdown():
             response = client.chat.completions.create(model=model, messages=messages)
             return response.choices[0].message.content
 
-
     class FileConversionException(BaseException):
         pass
 
-
     class UnsupportedFormatException(BaseException):
         pass
-
 
     class MarkdownConverter:
         """(In preview) An extremely simple text-based document reader, suitable for LLM use.
@@ -853,7 +895,11 @@ def _get_page_markdown():
 
             # Local path or url
             if isinstance(source, str):
-                if source.startswith("http://") or source.startswith("https://") or source.startswith("file://"):
+                if (
+                    source.startswith("http://")
+                    or source.startswith("https://")
+                    or source.startswith("file://")
+                ):
                     return self.convert_url(source, **kwargs)
                 else:
                     return self.convert_local(source, **kwargs)
@@ -861,7 +907,9 @@ def _get_page_markdown():
             elif isinstance(source, requests.Response):
                 return self.convert_response(source, **kwargs)
 
-        def convert_local(self, path: str, **kwargs: Any) -> DocumentConverterResult:  # TODO: deal with kwargs
+        def convert_local(
+            self, path: str, **kwargs: Any
+        ) -> DocumentConverterResult:  # TODO: deal with kwargs
             # Prepare a list of extensions to try (in order of priority)
             ext = kwargs.get("file_extension")
             extensions = [ext] if ext is not None else []
@@ -875,7 +923,9 @@ def _get_page_markdown():
             return self._convert(path, extensions, **kwargs)
 
         # TODO what should stream's type be?
-        def convert_stream(self, stream: Any, **kwargs: Any) -> DocumentConverterResult:  # TODO: deal with kwargs
+        def convert_stream(
+            self, stream: Any, **kwargs: Any
+        ) -> DocumentConverterResult:  # TODO: deal with kwargs
             # Prepare a list of extensions to try (in order of priority)
             ext = kwargs.get("file_extension")
             extensions = [ext] if ext is not None else []
@@ -908,7 +958,9 @@ def _get_page_markdown():
 
             return result
 
-        def convert_url(self, url: str, **kwargs: Any) -> DocumentConverterResult:  # TODO: fix kwargs type
+        def convert_url(
+            self, url: str, **kwargs: Any
+        ) -> DocumentConverterResult:  # TODO: fix kwargs type
             # Send a HTTP request to the URL
             response = self._requests_session.get(url, stream=True)
             response.raise_for_status()
@@ -961,7 +1013,9 @@ def _get_page_markdown():
 
             return result
 
-        def _convert(self, local_path: str, extensions: List[Union[str, None]], **kwargs) -> DocumentConverterResult:
+        def _convert(
+            self, local_path: str, extensions: List[Union[str, None]], **kwargs
+        ) -> DocumentConverterResult:
             error_trace = ""
             for ext in extensions + [None]:  # Try last with no extension
                 for converter in self._page_converters:
@@ -989,7 +1043,12 @@ def _get_page_markdown():
 
                     if res is not None:
                         # Normalize the content
-                        res.text_content = "\n".join([line.rstrip() for line in re.split(r"\r?\n", res.text_content)])
+                        res.text_content = "\n".join(
+                            [
+                                line.rstrip()
+                                for line in re.split(r"\r?\n", res.text_content)
+                            ]
+                        )
                         res.text_content = re.sub(r"\n{3,}", "\n\n", res.text_content)
 
                         # Todo
@@ -1037,33 +1096,40 @@ def _get_page_markdown():
         def register_page_converter(self, converter: DocumentConverter) -> None:
             """Register a page text converter."""
             self._page_converters.insert(0, converter)
+
     import base64
     import io
+
     try:
         global page
         phtml = page.evaluate("document.documentElement.outerHTML;")
         mdconvert = MarkdownConverter()
-        if page.url == "about:blank": 
-            raise Exception("You cannot convert the content of the blank page. It's meaningless. Make sure you have visited a valid page before converting.")
-        res = mdconvert.convert_stream(io.StringIO(phtml), file_extension=".html", url=page.url)
+        if page.url == "about:blank":
+            raise Exception(
+                "You cannot convert the content of the blank page. It's meaningless. Make sure you have visited a valid page before converting."
+            )
+        res = mdconvert.convert_stream(
+            io.StringIO(phtml), file_extension=".html", url=page.url
+        )
 
         clean_md = f"""# {res.title}\n\n{res.text_content}\n\nIf you have not yet got the answer and want to back to the previous page, please use `visit_url(url={repr(page.url)})`"""
-    
+
         # 将markdown内容转换为简单的HTML结构
         # 将markdown内容按固定长度分块
         chunk_size = 5000  # 每块大约1000字符
         content = res.text_content
 
+        chunks = [
+            content[i : i + chunk_size] for i in range(0, len(content), chunk_size)
+        ]
 
-        chunks = [content[i:i+chunk_size] for i in range(0, len(content), chunk_size)]
-        
-        formatted_content = ''
+        formatted_content = ""
         if len(chunks) > 1:
             notes = f"The converted markdown text is divided into {len(chunks)} chunks, you can use `page_down()` and `page_up()` to navigate through the text."
         else:
             notes = ""
         for i, chunk in enumerate(chunks):
-            formatted_content += f'''
+            formatted_content += f"""
                 <div role="region" 
                      aria-label="[INFO] content chunk {i+1}/{len(chunks)} {notes}" 
                      tabindex="0"
@@ -1071,7 +1137,7 @@ def _get_page_markdown():
                      style="min-height: 100vh; padding: 20px 0;">
                     {chunk}
                 </div>
-            '''
+            """
 
         html_content = f"""
         <html>
@@ -1108,22 +1174,23 @@ def _get_page_markdown():
         </body>
         </html>
         """
-        
+
         # 使用base64编码并通过goto显示
         goto(
-            "data:text/html;base64," + 
-            base64.b64encode(html_content.encode("utf-8")).decode("utf-8")
+            "data:text/html;base64,"
+            + base64.b64encode(html_content.encode("utf-8")).decode("utf-8")
         )
-        
+
         # 触发pageshow事件
-        page.evaluate("""
+        page.evaluate(
+            """
             const event = new Event('pageshow', {
                 bubbles: true,
                 cancelable: false
             });
             window.dispatchEvent(event);
-        """)
-
+        """
+        )
 
         # global page
         # from playwright.sync_api import sync_playwright
@@ -1148,20 +1215,20 @@ def _get_page_markdown():
         #         "value": "session_logininfo=AFmmF2swRAIgf4gadACOuWOcipI1anW-dakEjtidNLkufnOC8uml7EECIDh2YisqWELDBJPTGUysCucJ3I0wjXxYjVHro1LHrdW0%3AQUQ3MjNmd2Jiajl3OWZYRnpFNnZlWWV5ZGJWZ0hpcmp4LVVPU280bk4zOS03Z0ozZG9fOFhWZ0dXaVo3NG1wTEg1b3hGaG10TFBlaFBnTlJfbER5bEp0aFhoNS1OLVhYNFRZT2F6ajgzOFpDbGhlUjZpMWRETlFFRjFfTTRiM0RnNTROSkdmMTFMVjFic1VuZ2trbGp4aktDa0JJUC1BWDh3"
         #     },
         #     ])
-            
+
         #     # 访问 YouTube 视频
-            
+
         #     new_page.goto(url, wait_until="networkidle")
-            
+
         #     # 获取页面 HTML
         #     html = new_page.evaluate("document.documentElement.outerHTML;")
-            
+
         #     # 使用 MarkdownConverter 转换
         #     mdconvert = MarkdownConverter()
         #     res = mdconvert.convert_stream(io.StringIO(html), file_extension=".html", url=url)
-            
+
         #     clean_md = f"""# {res.title}\n\n{res.text_content}"""
-    
+
         #     # 将markdown内容转换为简单的HTML结构
         #     html_content = f"""
         #     <html>
@@ -1184,13 +1251,13 @@ def _get_page_markdown():
         #     </body>
         #     </html>
         #     """
-            
+
         #     # 使用base64编码并通过goto显示
         #     goto(
-        #         "data:text/html;base64," + 
+        #         "data:text/html;base64," +
         #         base64.b64encode(html_content.encode("utf-8")).decode("utf-8")
         #     )
-            
+
         #     # 触发pageshow事件
         #     page.evaluate("""
         #         const event = new Event('pageshow', {
@@ -1199,34 +1266,39 @@ def _get_page_markdown():
         #         });
         #         window.dispatchEvent(event);
         #     """)
-            
+
         #     # 关闭浏览器
         #     new_browser.close()
     except Exception as e:
         raise Exception(f"Get page markdown error: {str(e)}")
+
+
 if __name__ == "__main__":
     from playwright.sync_api import sync_playwright
     import io
+
     with sync_playwright() as p:
         # 启动浏览器
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        
+
         # 访问 YouTube 视频
         url = "https://www.researchgate.net/publication/232696279_The_influence_of_social_environment_on_sex_determination_in_harlequin_shrimp_Hymenocera_picta_Decapoda_Gnathophyllidae"
         page.goto(url, wait_until="networkidle")
-        
+
         # 获取页面 HTML
         html = page.evaluate("document.documentElement.outerHTML;")
-        
+
         # 使用 MarkdownConverter 转换
         mdconvert = MarkdownConverter()
-        res = mdconvert.convert_stream(io.StringIO(html), file_extension=".html", url=url)
-        
-        print('标题:', res.title)
-        print('\n内容:')
+        res = mdconvert.convert_stream(
+            io.StringIO(html), file_extension=".html", url=url
+        )
+
+        print("标题:", res.title)
+        print("\n内容:")
         print(res.text_content)
-        
+
         # 关闭浏览器
         browser.close()
     # mdconvert = MarkdownConverter()

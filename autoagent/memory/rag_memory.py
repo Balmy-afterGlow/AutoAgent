@@ -8,17 +8,18 @@ from abc import ABC, abstractmethod
 from openai import OpenAI
 import numpy as np
 from chromadb.api.types import QueryResult
+
 chromadb.logger.setLevel(chromadb.logging.ERROR)
 
 
 class Memory:
     def __init__(
-            self,
-            project_path: str,
-            db_name: str = '.sa',
-            platform: str = 'OpenAI', 
-            api_key: str = None, 
-            embedding_model: str = "text-embedding-3-small"
+        self,
+        project_path: str,
+        db_name: str = ".sa",
+        platform: str = "OpenAI",
+        api_key: str = None,
+        embedding_model: str = "text-embedding-3-small",
     ):
         """
         Memory: memory and external knowledge management.
@@ -29,24 +30,33 @@ class Memory:
              "text-embedding-ada-002".
         """
         self.db_name = db_name
-        self.collection_name = 'memory'
-        self.client = chromadb.PersistentClient(path=os.path.join(project_path, self.db_name))
+        self.collection_name = "memory"
+        self.client = chromadb.PersistentClient(
+            path=os.path.join(project_path, self.db_name)
+        )
         self.client.get_or_create_collection(
-                self.collection_name,
-            ) 
+            self.collection_name,
+        )
         # use the OpenAI embedding function if the openai section is set in the configuration.
-        if platform == 'OpenAI':
+        if platform == "OpenAI":
             openai_client = OpenAI(api_key=api_key or os.environ["OPENAI_API_KEY"])
-            self.embedder = lambda x: [i.embedding for i in openai_client.embeddings.create(input=x, model=embedding_model).data]
+            self.embedder = lambda x: [
+                i.embedding
+                for i in openai_client.embeddings.create(
+                    input=x, model=embedding_model
+                ).data
+            ]
         else:
             # self.embedder = embedding_functions.DefaultEmbeddingFunction()
-            self.embedder = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+            self.embedder = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name="all-MiniLM-L6-v2"
+            )
 
     def add_query(
-            self,
-            queries: List[Dict[str, str]],
-            collection: str = None,
-            idx: List[str] = None
+        self,
+        queries: List[Dict[str, str]],
+        collection: str = None,
+        idx: List[str] = None,
     ):
         """
         add_query: add the queries to the memery.
@@ -70,21 +80,23 @@ class Memory:
         if not collection:
             collection = self.collection_name
 
-        query_list = [query['query'] for query in queries]
+        query_list = [query["query"] for query in queries]
         embeddings = self.embedder(query_list)
         added_time = datetime.now().isoformat()
-        resp_list = [{'response': query['response'], 'created_at': added_time} for query in queries]
+        resp_list = [
+            {"response": query["response"], "created_at": added_time}
+            for query in queries
+        ]
         # insert the record into the database
         self.client.get_or_create_collection(collection).add(
-            documents=query_list,
-            metadatas=resp_list,
-            ids=ids, 
-            embeddings=embeddings
+            documents=query_list, metadatas=resp_list, ids=ids, embeddings=embeddings
         )
 
         return ids
 
-    def query(self, query_texts: List[str], collection: str = None, n_results: int = 5) -> QueryResult:
+    def query(
+        self, query_texts: List[str], collection: str = None, n_results: int = 5
+    ) -> QueryResult:
         """
         query: query the memery.
         Args:
@@ -112,7 +124,9 @@ class Memory:
         if not collection:
             collection = self.collection_name
         query_embedding = self.embedder(query_texts)
-        return self.client.get_or_create_collection(collection).query(query_embeddings=query_embedding, n_results=n_results)
+        return self.client.get_or_create_collection(collection).query(
+            query_embeddings=query_embedding, n_results=n_results
+        )
 
     def peek(self, collection: str = None, n_results: int = 20):
         """
@@ -171,9 +185,11 @@ class Memory:
         """
         self.client.reset()
 
+
 class Reranker:
     def __init__(self, model: str) -> None:
         self.model = model
+
     @abstractmethod
     def rerank(self, query_text: str, query_results: List[Dict]) -> List[Dict]:
         raise NotImplementedError("Reranker is not implemented")
