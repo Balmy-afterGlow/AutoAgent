@@ -66,4 +66,4 @@ import_tools_recursively(current_dir, "autoagent.tools")
 globals().update(registry.tools)
 globals().update(registry.plugin_tools)
 
-__all__ = list(registry.tools.keys()) + list(registry.plugin_tools.keys())
+# __all__ = list(registry.tools.keys()) + list(registry.plugin_tools.keys())

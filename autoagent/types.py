@@ -1,4 +1,3 @@
-from litellm.types.utils import ChatCompletionMessageToolCall, Function, Message
 from typing import List, Callable, Union, Optional, Tuple, Dict
 
 # Third-party imports
@@ -10,12 +9,12 @@ AgentFunction = Callable[[], Union[str, "Agent", dict]]
 class Agent(BaseModel):
     name: str = "Agent"
     model: str = "gpt-4o"
-    instructions: Union[str, Callable[[], str]] = "You are a helpful agent."
+    instructions: Union[str, Callable[[dict], str]] = "You are a helpful agent."
     functions: List[AgentFunction] = []
-    tool_choice: str = None
+    tool_choice: str = "none"
     parallel_tool_calls: bool = False
-    examples: Union[List[Tuple[dict, str]], Callable[[], str]] = []
-    handle_mm_func: Callable[[], str] = None
+    examples: Union[List[Tuple[dict, str]], Callable[[dict], list]] = []
+    handle_mm_func: Callable[[], str] | None = None
     agent_teams: Dict[str, Callable] = {}
 
 

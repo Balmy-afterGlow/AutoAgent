@@ -4,12 +4,13 @@ from autoagent.registry import register_tool
 @register_tool("case_resolved")
 def case_resolved(result: str):
     """
-    Use this function when the case is resolved and no further actions are needed. Please encapsulate your final answer (answer ONLY) within <solution> and </solution>.
+    Use this function when the case is resolved and no further actions are needed.
+    [IMPORTANT] Please encapsulate your final answer (answer ONLY) within <solution> and </solution>.
 
     Args:
         result: The final result of the case resolution following the instructions.
 
-    Example: case_resolved(`The answer to the question is <solution> 42 </solution>`)
+    Example: case_resolved(`The answer to the question is: <solution> answer </solution>`)
     """
     return f"Case resolved. No further actions are needed. The result of the case resolution is: {result}"
 

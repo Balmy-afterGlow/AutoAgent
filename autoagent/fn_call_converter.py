@@ -36,7 +36,7 @@ class FunctionCallValidationError(Exception):
 
 # Inspired by: https://docs.together.ai/docs/llama-3-function-calling#function-calling-w-llama-31-70b
 SYSTEM_PROMPT_SUFFIX_TEMPLATE = """
-You have access to the following functions:
+You have access to the following functions in {agent}:
 
 {description}
 
@@ -321,6 +321,7 @@ def convert_tools_to_description(tools: list[dict]) -> str:
 
 
 def convert_fncall_messages_to_non_fncall_messages(
+    agent: str,
     messages: list[dict],
     tools: list[ChatCompletionToolParam],
     add_in_context_learning_example: bool = True,
@@ -330,7 +331,7 @@ def convert_fncall_messages_to_non_fncall_messages(
 
     formatted_tools = convert_tools_to_description(tools)
     system_prompt_suffix = SYSTEM_PROMPT_SUFFIX_TEMPLATE.format(
-        description=formatted_tools
+        description=formatted_tools, agent=agent
     )
 
     converted_messages = []
@@ -576,14 +577,15 @@ def _fix_stopword(content: str) -> str:
 
 
 def convert_non_fncall_messages_to_fncall_messages(
+    agent: str,
     messages: list[dict],
-    tools: list[ChatCompletionToolParam],
+    tools: list,
 ) -> list[dict]:
     """Convert non-function calling messages back to function calling messages."""
     messages = copy.deepcopy(messages)
     formatted_tools = convert_tools_to_description(tools)
     system_prompt_suffix = SYSTEM_PROMPT_SUFFIX_TEMPLATE.format(
-        description=formatted_tools
+        description=formatted_tools, agent=agent
     )
 
     converted_messages = []
@@ -605,6 +607,7 @@ def convert_non_fncall_messages_to_fncall_messages(
                         system_prompt_suffix
                     )[0]
             converted_messages.append({"role": "system", "content": content})
+
         # Skip user messages (no conversion needed)
         elif role == "user":
             # Check & replace in-context learning example
@@ -685,7 +688,7 @@ def convert_non_fncall_messages_to_fncall_messages(
         # Handle assistant messages
         elif role == "assistant":
             if isinstance(content, str):
-                content = _fix_stopword(content)
+                # content = _fix_stopword(content) # 遗漏标签的情况比较少，并且处理逻辑也有问题，暂时先注释掉
                 fn_match = re.search(FN_REGEX_PATTERN, content, re.DOTALL)
             elif isinstance(content, list):
                 if content and content[-1]["type"] == "text":
@@ -750,7 +753,10 @@ def convert_non_fncall_messages_to_fncall_messages(
                         content[-1]["text"].split("<function=")[0].strip()
                     )
                 elif isinstance(content, str):
-                    content = content.split("<function=")[0].strip()
+                    pass
+                    # 一般在此处的content都是以“<function=”开头，所以如果启用这段代码则会取空白内容
+                    # 虽然正常的原生函数支持模型的content就是空值，但是为了查看模型输出的原始内容，这里选择保留
+                    # content = content.split("<function=")[0].strip()
                 else:
                     raise FunctionCallConversionError(
                         f"Unexpected content type {type(content)}. Expected str or list. Content: {content}"
@@ -818,53 +824,49 @@ def convert_from_multiple_tool_calls_to_single_tool_call_messages(
 
 def convert_fn_messages_to_non_fn_messages(messages: list[dict]) -> list[dict]:
     """Convert function calling messages back to non-function calling messages."""
-    new_messages = []
+    messages_without_tool_role = []
     for idx, message in enumerate(messages):
         if message["role"] == "tool":
             assert (
                 messages[idx - 1]["role"] == "assistant"
-                and new_messages[-1]["role"] == "assistant"
+                and messages_without_tool_role[-1]["role"] == "assistant"
             )
-            new_messages[-1]["content"] = (
-                messages[idx - 1]["content"]
-                + f"""
+            messages_without_tool_role[-1][
+                "content"
+            ] = f"""
 I have executed the tool {message["name"]} and the result is {message["content"]}.
 """
-            )
         elif message["role"] == "assistant":
             if message["tool_calls"] is not None:
-                msg_content = (
-                    message["content"]
-                    + f"""
+                msg_content = f"""
 I want to use the tool named {message["tool_calls"][0]["function"]["name"]}, with the following arguments: {message["tool_calls"][0]["function"]["arguments"]}.
 """
-                )
             else:
                 msg_content = message["content"]
-            new_messages.append(
+            messages_without_tool_role.append(
                 {"role": message["role"], "content": msg_content}.copy()
             )
         else:
-            new_messages.append(message.copy())
-    return new_messages
+            messages_without_tool_role.append(message.copy())
+    return messages_without_tool_role
 
 
 def interleave_user_into_messages(messages: list[dict]) -> list[dict]:
-    new_messages = []
+    complete_messages = []
+    content = "Please think twice and take the next action according to your previous actions and observations. Note that the agent in each round of dialogue may be inconsistent, so don't be surprised if you see that the tools you used before are not within the expected range of tools. The tools you can use in this dialogue are based on the prompts given to you by the system at the beginning."
     for idx, message in enumerate(messages):
         if message["role"] == "assistant" and messages[idx - 1]["role"] == "assistant":
             # 在两个连续的 assistant 消息之间插入一个空的 user 消息
-            new_messages.append(
-                {
-                    "role": "user",
-                    "content": "Please think twice and take the next action according to your previous actions and observations.",  # 空内容的用户消息
-                }.copy()
-            )
-        new_messages.append(message.copy())
-    new_messages.append(
-        {
-            "role": "user",
-            "content": "Please think twice and take the next action according to your previous actions and observations.",
-        }
-    )
-    return new_messages
+            complete_messages.append({"role": "user", "content": content}.copy())
+        complete_messages.append(message.copy())
+    if messages[-1]["role"] != "user":
+        complete_messages.append({"role": "user", "content": content})
+    return complete_messages
+
+
+def remove_reasoning_content_in_messages(messages: list[dict]) -> list[dict]:
+    message_without_reasoning_content = copy.deepcopy(messages)
+    for message in message_without_reasoning_content:
+        if "reasoning_content" in message:
+            del message["reasoning_content"]
+    return message_without_reasoning_content

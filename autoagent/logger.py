@@ -5,6 +5,8 @@ import json
 from typing import List
 from constant import DEBUG, DEFAULT_LOG, LOG_PATH, MC_MODE
 from pathlib import Path
+from litellm.types.utils import ModelResponse, Choices
+from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 
 BAR_LENGTH = 60
 
@@ -19,180 +21,94 @@ class MetaChainLogger:
         with open(self.log_path, "a") as f:
             f.write(message + "\n")
 
-    def _warp_args(self, args_dict: str):
-        args_dict = json.loads(args_dict)
+    def _warp_args(self, args_json_format: str):
+        args_dict = json.loads(args_json_format)
         args_str = ""
         for k, v in args_dict.items():
             args_str += f"{repr(k)}={repr(v)}, "
+        # 去除最后一个逗号和空格
         return args_str[:-2]
 
-    def _wrap_title(self, title: str, color: str = None):
+    def _wrap_title(self, title: str):
         single_len = (BAR_LENGTH - len(title)) // 2
-        color_bos = f"[{color}]" if color else ""
-        color_eos = f"[/{color}]" if color else ""
-        return f"{color_bos}{'*'*single_len} {title} {'*'*single_len}{color_eos}"
+        return f"{'-'*single_len} {title} {'-'*single_len}"
 
-    def info(self, *args: str, **kwargs: dict):
-        # console = Console()
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    def info(self, *args: str, **kwargs: str):
+        timestamp = datetime.now().strftime(f"%Y-%m-%d %H:%M:%S")
         message = "\n".join(map(str, args))
-        color = kwargs.get("color", "white")
-        if MC_MODE:
-            color = "grey58"
         title = kwargs.get("title", "INFO")
-        log_str = f"[{timestamp}]\n{message}"
+        log_str = f"{self._wrap_title(title)}\n[{timestamp}]\n{message}\n"
         if self.debug:
-            # print_in_box(log_str, color=color, title=title)
-            self.console.print(self._wrap_title(title, f"bold {color}"))
-            print_str = escape(log_str)
-            if MC_MODE:
-                print_str = f"[grey58]{print_str}[/grey58]"
-            self.console.print(print_str, highlight=True, emoji=True)
-        log_str = self._wrap_title(title) + "\n" + log_str
+            # escape用于避免rich解析标签渲染富文本，原样输出字符串
+            # highlight=True用于高亮输出，当字符串中包含代码、文件路径、URL、数字等可识别的结构化内容时，rich 会尝试用不同颜色标记它们e
+            # emoji=True控制是否将 :emoji_name: 转换为实际的 Unicode 表情符号
+            self.console.print(f"[grey58]{escape(log_str)}", highlight=True, emoji=True)
         if self.log_path:
             self._write_log(log_str)
 
-    def lprint(self, *args: str, **kwargs: dict):
-        if not self.debug:
-            return
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        message = "\n".join(map(str, args))
-        color = kwargs.get("color", "white")
-        if MC_MODE:
-            color = "grey58"
-        title = kwargs.get("title", "")
-        log_str = f"[{timestamp}]\n{message}"
-        # print_in_box(log_str, color=color, title=title)
-        self.console.print(self._wrap_title(title, f"bold {color}"))
-        print_str = escape(log_str)
-        if MC_MODE:
-            print_str = f"[grey58]{print_str}[/grey58]"
-        self.console.print(print_str, highlight=True, emoji=True)
+    # 只能对具有__dict__属性的对象进行递归，后来发现message的类型是基于pydantic模型的，有特定的json化方案，所以此函数不再使用
+    def _recursive_vars(self, message):
+        if not hasattr(message, "__dict__"):
+            return message
+        res = {}
+        for key, value in vars(message).items():
+            if hasattr(value, "__dict__"):
+                res[key] = self._recursive_vars(value)
+            elif isinstance(value, (list, tuple)):
+                res[key] = [self._recursive_vars(item) for item in value]
+            elif isinstance(value, dict):
+                res[key] = {k: self._recursive_vars(v) for k, v in value.items()}
+            else:
+                res[key] = value
+        return res
 
-    def _wrap_timestamp(self, timestamp: str, color: bool = True):
-        color_bos = "[grey58]" if color else ""
-        color_eos = "[/grey58]" if color else ""
-        return f"{color_bos}[{timestamp}]{color_eos}"
+    def print_message_block(self, message):
+        match message["role"]:
+            case "user":
+                self.info(
+                    "Receiveing the task:", message["content"], title="User Message"
+                )
+            case "assistant":
+                # message_dict = self._recursive_vars(message)
+                # json_str = json.dumps(message_dict, indent=2, default=str)
+                self.info(
+                    f"{message["sender"]}:",
+                    message["content"],
+                    "\n",
+                    "original message:",
+                    message.to_json(),
+                    title="Assistant Message",
+                )
 
-    def _print_tool_execution(self, message, timestamp: str):
-        if MC_MODE:
-            colors = ["grey58"] * 3
-        else:
-            colors = ["pink3", "blue", "purple"]
-        self.console.print(self._wrap_title("Tool Execution", f"bold {colors[0]}"))
-        self.console.print(self._wrap_timestamp(timestamp, color=True))
-        self.console.print(
-            f"[bold {colors[1]}]Tool Execution:[/bold {colors[1]}]", end=" "
-        )
-        self.console.print(
-            f"[bold {colors[2]}]{message['name']}[/bold {colors[2]}]\n[bold {colors[1]}]Result:[/bold {colors[1]}]"
-        )
-        print_str = f"---\n{escape(message['content'])}\n---"
-        if MC_MODE:
-            print_str = f"[grey58]{print_str}[/grey58]"
-        self.console.print(print_str, highlight=True, emoji=True)
-
-    def _save_tool_execution(self, message, timestamp: str):
-        self._write_log(self._wrap_title("Tool Execution"))
-        self._write_log(
-            f"{self._wrap_timestamp(timestamp, color=False)}\ntool execution: {message['name']}\nResult:\n---\n{message['content']}\n---"
-        )
-
-    def _print_assistant_message(self, message, timestamp: str):
-        if MC_MODE:
-            colors = ["grey58"] * 3
-        else:
-            colors = ["light_salmon3", "blue", "purple"]
-        self.console.print(self._wrap_title("Assistant Message", f"bold {colors[0]}"))
-        self.console.print(
-            f"{self._wrap_timestamp(timestamp, color=True)}\n[bold {colors[1]}]{message['sender']}[/bold {colors[1]}]:",
-            end=" ",
-        )
-        if message["content"]:
-            print_str = escape(message["content"])
-            if MC_MODE:
-                print_str = f"[grey58]{print_str}[/grey58]"
-            self.console.print(print_str, highlight=True, emoji=True)
-        else:
-            print_str = None
-            if MC_MODE:
-                print_str = "[grey58]None[/grey58]"
-            self.console.print(print_str, highlight=True, emoji=True)
-
-    def _save_assistant_message(self, message, timestamp: str):
-        self._write_log(self._wrap_title("Assistant Message"))
-        content = message["content"] if message["content"] else None
-        self._write_log(
-            f"{self._wrap_timestamp(timestamp, color=False)}\n{message['sender']}: {content}"
-        )
-
-    def _print_tool_call(self, tool_calls: List, timestamp: str):
-        if MC_MODE:
-            colors = ["grey58"] * 3
-        else:
-            colors = ["light_pink1", "blue", "purple"]
-        if len(tool_calls) >= 1:
-            self.console.print(self._wrap_title("Tool Calls", f"bold {colors[0]}"))
-
-        for tool_call in tool_calls:
-            f = tool_call["function"]
-            name, args = f["name"], f["arguments"]
-            arg_str = self._warp_args(args)
-            print_arg_str = escape(arg_str)
-            if MC_MODE:
-                print_arg_str = f"[grey58]{print_arg_str}[/grey58]"
-            self.console.print(
-                f"{self._wrap_timestamp(timestamp, color=True)}\n[bold {colors[2]}]{name}[/bold {colors[2]}]({print_arg_str})"
-            )
-
-    def _save_tool_call(self, tool_calls: List, timestamp: str):
-        if len(tool_calls) >= 1:
-            self._write_log(self._wrap_title("Tool Calls"))
-
-        for tool_call in tool_calls:
-            f = tool_call["function"]
-            name, args = f["name"], f["arguments"]
-            arg_str = self._warp_args(args)
-            self._write_log(
-                f"{self._wrap_timestamp(timestamp, color=False)}\n{name}({arg_str})"
-            )
-
-    def pretty_print_messages(self, message, **kwargs) -> None:
-        # for message in messages:
-        if message["role"] != "assistant" and message["role"] != "tool":
-            return
-        # console = Console()
-
-        # handle tool call
-        if message["role"] == "tool":
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            if self.log_path:
-                self._save_tool_execution(message, timestamp)
-            if self.debug:
-                self._print_tool_execution(message, timestamp)
-            return
-
-        # handle assistant message
-        # print agent name in blue
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if self.log_path:
-            self._save_assistant_message(message, timestamp)
-        if self.debug:
-            self._print_assistant_message(message, timestamp)
-
-        # print tool calls in purple, if any
-        tool_calls = message.get("tool_calls") or []
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if self.log_path:
-            self._save_tool_call(tool_calls, timestamp)
-        if self.debug:
-            self._print_tool_call(tool_calls, timestamp)
+                # - 如果message["tool_calls"]不存在，返回空列表[]
+                # - 如果message["tool_calls"]为None，也会返回空列表[]
+                # - 只有明确设置了非None值时才会返回原值
+                tool_calls = message.get("tool_calls") or []
+                for tool_call in tool_calls:
+                    f = tool_call["function"]
+                    name, args = f["name"], f["arguments"]
+                    arg_str = self._warp_args(args)
+                    self.info(
+                        f"{message["sender"]} call tool:",
+                        f"{name}({arg_str})",
+                        title="Tool Call",
+                    )
+            case "tool":
+                self.info(
+                    f"tool execution: {message['name']}",
+                    "Result:",
+                    "\n+++++ the start +++++\n",
+                    f"{message['content']}",
+                    "\n+++++ the end +++++",
+                    title="Tool Execution",
+                )
 
 
 class LoggerManager:
     _instance = None
-    _logger: MetaChainLogger = None
+    _logger: MetaChainLogger | None = None
 
+    # 保证单例模式
     @classmethod
     def get_instance(cls):
         if cls._instance is None:

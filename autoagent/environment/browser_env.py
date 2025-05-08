@@ -402,13 +402,17 @@ class BrowserEnv:
         local_root: str | None = None,
         workplace_name: str | None = None,
     ):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_dir = Path(f"logs/res_{timestamp}")
-        log_dir.mkdir(
-            parents=True, exist_ok=True
-        )  # recursively create all necessary parent directories
-        log_path = str(log_dir / "browser_env.log")
-        self.log_path = log_path
+        # datetime.now() 获取当前本地日期和时间
+        # strftime() 将时间格式化为特定格式的字符串
+        timestamp = datetime.now().strftime(f"%Y%m%d_%H%M%S")
+        # 创建的目录是相对于当前的工作目录（程序运行时所在的路径）
+        # log_dir = Path(f"logs/res_{timestamp}")
+        # log_dir.mkdir(
+        #     parents=True, exist_ok=True
+        # )  # recursively create all necessary parent directories
+        # log_path = str(log_dir / "browser_env.log")
+        self.log_path = None
+        # self.log_path = log_path
         # self.logger = LoggerManager.get_logger()
         self.html_text_converter = self.get_html_text_converter()
         self.eval_mode = False
@@ -422,6 +426,7 @@ class BrowserEnv:
 
         # Initialize browser environment process
         multiprocessing.set_start_method("spawn", force=True)
+        # 建立双向管道通信，一个是浏览器管道端点，一个是代理管道端点
         self.browser_side, self.agent_side = multiprocessing.Pipe()
 
         # tmp_env = gym.make(self.browsergym_eval_env,tags_to_mark='all') if self.eval_mode else gym.make('browsergym/openended',task_kwargs={'start_url': 'about:blank', 'goal': 'PLACEHOLDER_GOAL'},
@@ -435,6 +440,7 @@ class BrowserEnv:
         # tmp_env.close()
         self.init_browser()
 
+        # atexit 模块允许注册函数在解释器正常终止时执行
         atexit.register(self.close)
 
     def get_html_text_converter(self):
@@ -454,20 +460,20 @@ class BrowserEnv:
         retry=tenacity.retry_if_exception_type(BrowserInitException),
     )
     def init_browser(self):
-        debug_print(
-            True, "Starting browser env...", title="Browser Env", log_path=self.log_path
-        )
+        # debug_print(
+        #     True, "Starting browser env...", title="Browser Env", log_path=self.log_path
+        # )
         # self.logger.info("Starting browser env...", title="Browser Env", color="green")
         try:
             self.process = multiprocessing.Process(target=self.browser_process)
             self.process.start()
         except Exception as e:
-            debug_print(
-                True,
-                f"Failed to start browser process: {e}",
-                title="Browser Env",
-                log_path=self.log_path,
-            )
+            # debug_print(
+            #     True,
+            #     f"Failed to start browser process: {e}",
+            #     title="Browser Env",
+            #     log_path=self.log_path,
+            # )
             # self.logger.info(f'Failed to start browser process: {e}', title="Browser Env", color="red")
             raise
 
@@ -516,8 +522,25 @@ class BrowserEnv:
                 ), f"local_path must contain {local_workplace}"
                 return local_path.replace(local_workplace, docker_workplace)
 
+            # inspect.getsource(_local_to_docker) 获取函数的源代码字符串
             source = inspect.getsource(_local_to_docker)
+            # textwrap.dedent 规范化字符串的缩进
             normalized_source = textwrap.dedent(source)
+            # 结果是：
+            # """
+            # Convert a local path to a docker path
+            # local_path: the local path to convert, like `{local_workplace}/downloads/xxx`
+            # docker_path: the docker path to convert, like `{docker_workplace}/downloads/xxx`
+
+            # Examples:
+            #     _local_to_docker('/Users/tangjiabin/Documents/reasoning/autoagent/workplace_gaia_eval/downloads/xxx')
+            # """
+            # local_workplace = None
+            # docker_workplace = None
+            # assert local_workplace in local_path, f"local_path must contain {local_workplace}"
+            # return local_path.replace(local_workplace, docker_workplace)
+
+            # 动态替换函数中的None变量
             normalized_source = normalized_source.replace(
                 "local_workplace = None",
                 f"local_workplace = {repr(self.local_workplace)}",
@@ -564,21 +587,36 @@ def _local_to_docker(local_path: str):
                 + action_set.python_includes
             )
 
+            # 拼接后可能的内容形式：
+            # local_workplace = "/Users/name/project"
+            # def _local_to_docker(local_path: str):
+            #     local_workplace = "/Users/name/project"
+            #     docker_workplace = "/app"
+            #     assert local_workplace in local_path
+            #     return local_path.replace(local_workplace, docker_workplace)
+            # cookies = {"session": "abc123", "user": "john_doe"}
+            # # -----the end-----
+
             # action_set.python_includes = f"LOCAL_ROOT = {repr(LOCAL_ROOT)}\n" + action_set.python_includes
 
             # print(action_set.python_includes)
             action_mapping = action_set.to_python_code
+
+            # 创建浏览器自动化环境
             env = gym.make(
-                "browsergym/openended",
-                task_kwargs={"start_url": "about:blank", "goal": "PLACEHOLDER_GOAL"},
-                wait_for_user_message=False,
-                headless=True,
-                disable_env_checker=True,
-                tags_to_mark="all",
-                action_mapping=action_mapping,
+                "browsergym/openended",  # 环境类型：开放式浏览器环境
+                task_kwargs={
+                    "start_url": "about:blank",
+                    "goal": "PLACEHOLDER_GOAL",
+                },  # 任务配置字典，start_url: 初始页面（about:blank 表示空白页）；goal: 任务目标（这里是占位符，实际使用时需替换）
+                wait_for_user_message=False,  # # 是否等待用户消息
+                headless=True,  # 是否以无头模式运行（无图形界面，适合后台执行）
+                disable_env_checker=True,  # 禁用环境完整性检查（加快启动速度）
+                tags_to_mark="all",  # 标记页面元素的策略（"all" 表示标记所有可交互元素）
+                action_mapping=action_mapping,  # 注入自定义动作映射
             )
 
-        obs, info = env.reset()
+        obs, info = env.reset()  # 初始化环境，返回初始观察结果和信息
 
         # self.viewport = env.env.viewport if env.env.viewport else env.env.task.viewport
         # print(f"Viewport: {self.viewport}")
@@ -597,13 +635,15 @@ def _local_to_docker(local_path: str):
             # self.logger.info(f"Browsing goal: {obs['goal']}", title="Browser Env", color="green")
             self.eval_goal = obs["goal"]
 
-        debug_print(
-            True, "Browser env started.", title="Browser Env", log_path=self.log_path
-        )
+        # debug_print(
+        #     True, "Browser env started.", title="Browser Env", log_path=self.log_path
+        # )
         # self.logger.info('Browser env started.', title="Browser Env", color="green")
         while should_continue():
             try:
+                # poll(timeout=0.01)：非阻塞检查浏览器端（如另一个进程或线程）是否有消息到达（超时时间 0.01 秒）
                 if self.browser_side.poll(timeout=0.01):
+                    # recv()：接收浏览器端发送的消息，返回一个元组，包含唯一请求 ID 和动作指令字典
                     unique_request_id, action_data = self.browser_side.recv()
 
                     # shutdown the browser environment
@@ -637,6 +677,12 @@ def _local_to_docker(local_path: str):
                         continue
 
                     action = action_data["action"]
+                    # env.step(action)：执行浏览器动作
+                    # obs：新的页面状态（包含 DOM 结构、截图、页面索引等）
+                    # reward：动作执行后的即时奖励
+                    # terminated：是否终止（完成or结束）
+                    # truncated：是否截断
+                    # info：附加的调试信息
                     obs, reward, terminated, truncated, info = env.step(action)
 
                     # EVAL ONLY: Save the rewards into file for evaluation
@@ -644,10 +690,15 @@ def _local_to_docker(local_path: str):
                         self.eval_rewards.append(reward)
 
                     # add text content of the page
+                    # 将 DOM 对象转为可读的 HTML 字符串
                     html_str = flatten_dom_to_str(obs["dom_object"])
+                    # 进一步提取纯文本（去除标签、格式化）
                     obs["text_content"] = self.html_text_converter.handle(html_str)
                     # make observation serializable
+                    # 序列化数据为JSON，通过IPC发送到主线程
+                    # 截图转换为 base64 格式
                     obs["screenshot"] = self.image_to_png_base64_url(obs["screenshot"])
+                    # 页面索引和时间戳转换为浮点数
                     obs["active_page_index"] = obs["active_page_index"].item()
                     obs["elapsed_time"] = obs["elapsed_time"].item()
                     self.browser_side.send((unique_request_id, obs))

@@ -1,6 +1,7 @@
 import os
 import os.path as osp
 import subprocess
+from autoagent.logger import MetaChainLogger
 from constant import BASE_IMAGES, AI_USER, GITHUB_AI_TOKEN
 import time
 import socket
@@ -8,6 +9,12 @@ import json
 from pathlib import Path
 import shutil
 
+# __file__获取当前Python文件的绝对路径
+# Path(__file__)将路径字符串转换为Path对象
+# .parent获取该文件所在的目录路径
+# .resolve()解析所有符号链接并规范化路径
+# wd存储的是当前文件所在目录的绝对路径
+# /home/moyu/Code/Project/AutoAgent/Self_modification/AutoAgent/autoagent/environment/
 wd = Path(__file__).parent.resolve()
 from dataclasses import dataclass, field
 from typing import Optional, Union, Dict
@@ -26,6 +33,7 @@ class DockerConfig:
     git_clone: bool = field(default=False)
     setup_package: Optional[str] = field(default=None)
     local_root: str = field(default=os.getcwd())
+    logger: MetaChainLogger | None = field(default=None)
 
 
 class DockerEnv:
@@ -52,17 +60,20 @@ class DockerEnv:
             f"name={self.container_name}",
             "--format",
             "{{.Names}}",
-        ]
+        ]  # 结果：auto_agent
         existing_container = subprocess.run(
             container_check_command, capture_output=True, text=True
         )
         os.makedirs(self.local_workplace, exist_ok=True)
 
+        # 将environment目录下的tcp_server.py文件复制到与docker的映射目录
         if not osp.exists(osp.join(self.local_workplace, "tcp_server.py")):
             shutil.copy(osp.join(wd, "tcp_server.py"), self.local_workplace)
             assert osp.exists(
                 osp.join(self.local_workplace, "tcp_server.py")
             ), "Failed to copy tcp_server.py to the local workplace"
+
+        # 默认情况下，这个属性是None，目前暂时先不看它
         if self.setup_package is not None:
             unzip_command = [
                 "tar",
@@ -72,8 +83,10 @@ class DockerEnv:
                 self.local_workplace,
             ]
             subprocess.run(unzip_command)
+
         if self.git_clone:
             if not os.path.exists(os.path.join(self.local_workplace, "AutoAgent")):
+                # 拉取github的autoagent_mirror分支
                 git_command = [
                     "cd",
                     self.local_workplace,
@@ -92,6 +105,7 @@ class DockerEnv:
                     raise Exception(
                         f"Failed to clone the repository. The error is: {result.stdout}"
                     )
+                # 复制.env文件到映射目录下的AutoAgent目录下
                 copy_env_command = f"cp .env {self.local_workplace}/AutoAgent"
                 result = subprocess.run(
                     copy_env_command, shell=True, capture_output=True, text=True
@@ -102,31 +116,40 @@ class DockerEnv:
                     )
                 # create a new branch
             new_branch_name = f"{self.test_pull_name}_{self.task_name}"
-            create_branch_command = f"cd {self.local_workplace}/AutoAgent && git checkout -b {new_branch_name}"
-            result = subprocess.run(
-                create_branch_command, shell=True, capture_output=True, text=True
+
+            check_branch_command = f"cd {self.local_workplace}/AutoAgent && git show-ref --verify --quiet refs/heads/{new_branch_name}"
+            branch_exists = (
+                subprocess.run(
+                    check_branch_command, shell=True, capture_output=True, text=True
+                ).returncode
+                == 0
             )
-            if result.returncode != 0:
-                print(
-                    Exception(
-                        f"Failed to create and switch to new branch. Error: {result.stderr}"
-                    )
-                )
+
+            if branch_exists:
                 switch_branch_command = f"cd {self.local_workplace}/AutoAgent && git checkout {new_branch_name}"
                 result = subprocess.run(
                     switch_branch_command, shell=True, capture_output=True, text=True
                 )
-                if result.returncode != 0:
-                    raise Exception(
-                        f"Failed to switch to new branch. Error: {result.stderr}"
-                    )
+                if result.returncode == 0:
+                    pass
+                    # print(
+                    #     f"Branch '{new_branch_name}' already exists, switched successfully"
+                    # )
                 else:
-                    print(f"Successfully switched to new branch: {new_branch_name}")
+                    raise Exception(
+                        f"Failed to switch existing branch: {result.stderr}"
+                    )
             else:
-                print(
-                    f"Successfully created and switched to new branch: {new_branch_name}"
+                create_branch_command = f"cd {self.local_workplace}/AutoAgent && git checkout -b {new_branch_name}"
+                result = subprocess.run(
+                    create_branch_command, shell=True, capture_output=True, text=True
                 )
+                if result.returncode == 0:
+                    print(f"Created and switched to new branch: {new_branch_name}")
+                else:
+                    raise Exception(f"Failed to create branch: {result.stderr}")
 
+        # 如果容器已经存在，检查是否正在运行，如果不在运行则启动
         if existing_container.stdout.strip() == self.container_name:
             # check if the container is running
             running_check_command = [
@@ -142,43 +165,45 @@ class DockerEnv:
             )
 
             if running_container.stdout.strip() == self.container_name:
-                print(
-                    f"Container '{self.container_name}' is already running. Skipping creation."
-                )
-                return  # container is already running, skip creation
+                pass
+                # print(
+                #     f"Container '{self.container_name}' is already running. Skipping creation."
+                # )
             else:
                 # container exists but is not running, start it
                 start_command = ["docker", "start", self.container_name]
                 subprocess.run(start_command)
                 print(f"Container '{self.container_name}' has been started.")
-                return
 
-        # if the container does not exist, create and start a new container
-        docker_command = [
-            "docker",
-            "run",
-            "-d",
-            "--name",
-            self.container_name,
-            "--user",
-            "root",
-            "-v",
-            f"{self.local_workplace}:{self.docker_workplace}",
-            "-w",
-            f"{self.docker_workplace}",
-            "-p",
-            f"{self.communication_port}:{self.communication_port}",
-            BASE_IMAGES,
-            "/bin/bash",
-            "-c",
-            f"python3 {self.docker_workplace}/tcp_server.py --workplace {self.workplace_name} --conda_path {self.conda_path} --port {self.communication_port}",
-        ]
-        # execute the docker command
-        result = subprocess.run(docker_command, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise Exception(f"Failed to start container: {result.stderr}")
-        if self.wait_for_container_ready(timeout=60):
-            print(f"Container '{self.container_name}' has been created and started.")
+        else:
+            # if the container does not exist, create and start a new container
+            docker_command = [
+                "docker",
+                "run",
+                "-d",
+                "--name",
+                self.container_name,
+                "--user",
+                "root",
+                "-v",
+                f"{self.local_workplace}:{self.docker_workplace}",
+                "-w",
+                f"{self.docker_workplace}",
+                "-p",
+                f"{self.communication_port}:{self.communication_port}",
+                BASE_IMAGES,
+                "/bin/bash",
+                "-c",
+                f"python3 {self.docker_workplace}/tcp_server.py --workplace {self.workplace_name} --conda_path {self.conda_path} --port {self.communication_port}",
+            ]
+            # execute the docker command
+            result = subprocess.run(docker_command, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise Exception(f"Failed to start container: {result.stderr}")
+            if self.wait_for_container_ready(timeout=60):
+                print(
+                    f"Container '{self.container_name}' has been created and started."
+                )
 
     def wait_for_container_ready(self, timeout=30):
         """using subprocess to check if the container is running"""
@@ -195,7 +220,7 @@ class DockerEnv:
                 ],
                 capture_output=True,
                 text=True,
-            )
+            )  # 结果：true
 
             if result.returncode == 0 and "true" in result.stdout.lower():
                 # 额外检查 tcp_server 是否运行
@@ -318,7 +343,7 @@ def check_container_ports(container_name: str):
     """
     check if the container has port mapping
     return format:
-    - if the container exists and has port mapping: '0.0.0.0:12345->12345/tcp'
+    - if the container exists and has port mapping '0.0.0.0:12345->12345/tcp': (12345, 12345)
     - if the container does not exist or does not have port mapping: None
     """
     # use docker ps to check the container and get the port information
@@ -330,7 +355,7 @@ def check_container_ports(container_name: str):
         f"name={container_name}",
         "--format",
         "{{.Ports}}",
-    ]
+    ]  # 输出：12345/tcp, 0.0.0.0:12347->12347/tcp
 
     result = subprocess.run(container_check_command, capture_output=True, text=True)
     ports_info = result.stdout.strip()
@@ -344,10 +369,10 @@ def check_container_ports(container_name: str):
         if "->" in mapping:
             # parse '0.0.0.0:12345->12345/tcp' to (12345, 12345)
             host_part, container_part = mapping.split("->")
-            host_port = host_part.split(":")[1]  # get '12345' from '0.0.0.0:12345'
-            container_port = container_part.split("/")[
-                0
-            ]  # get '12345' from '12345/tcp'
+            # get '12345' from '0.0.0.0:12345'
+            host_port = host_part.split(":")[1]
+            # get '12345' from '12345/tcp'
+            container_port = container_part.split("/")[0]
             return (int(host_port), int(container_port))  # convert to integers
     return None
 

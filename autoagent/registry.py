@@ -78,6 +78,7 @@ class Registry:
             cls._instance = super().__new__(cls)
         return cls._instance
 
+    # 被注册的函数本身的功能没有变化，只不过将其的一些信息保存到了 registry 中，方便后续的调用
     def register(
         self,
         type: Literal["tool", "agent", "plugin_tool", "plugin_agent", "workflow"],
@@ -92,6 +93,7 @@ class Registry:
         """
 
         def decorator(func: Callable):
+            # 指示变量不属于当前函数的局部作用域，而是来自外层函数的作用域，nonlocal是闭包中修改外层变量的必要关键字
             nonlocal name
             if name is None:
                 name = func.__name__
@@ -112,6 +114,7 @@ class Registry:
             else:
                 wrapped_func = func
             try:
+                # 获取函数所在源文件的绝对路径
                 file_path = os.path.abspath(inspect.getfile(func))
             except:
                 file_path = "Unknown"

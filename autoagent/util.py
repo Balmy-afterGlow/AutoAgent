@@ -58,6 +58,7 @@ def debug_print(debug: bool, *args: str, **kwargs: dict) -> None:
     if not debug:
         return
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # map(str, args)将args中的每个元素转换为字符串，即为可迭代对象每个值都调用str()函数
     message = "\n".join(map(str, args))
     color = kwargs.get("color", "white")
     title = kwargs.get("title", "")
@@ -101,14 +102,19 @@ def print_markdown(md_path: str, console: Optional[Console] = None):
 
 
 def single_select_menu(options, message: str = ""):
+    # 可以在这个地方加入更多的可自定义选择：比如模型选择等等
     questions = [
+        # 创建列表选择器
         inquirer.List(
-            "choice",
-            message=message,
+            "choice",  # 用户选择的结果将存储在返回字典的这个键下
+            message=message,  # 菜单标题
+            # 支持两种格式：
+            # 1. 简单列表：["A", "B"] → 显示和返回值相同
+            # 2. 值-描述对：[("显示文本", "实际值"), ...]
             choices=options,
         ),
     ]
-    answers = inquirer.prompt(questions)
+    answers = inquirer.prompt(questions)  # 渲染交互界面并阻塞等待用户输入
     return answers["choice"]
 
 
@@ -515,17 +521,21 @@ class UserCompleter(Completer):
         self.users = users
 
     def get_completions(self, document, complete_event):
-        word = document.get_word_before_cursor()
+        # 默认情况下 @ 符号被视为单词分隔符，导致无法正确捕获包含 @ 的单词
+        # word = document.get_word_before_cursor()
 
-        if word.startswith("@"):
-            prefix = word[1:]  # 去掉@
-            for user in self.users:
-                if user.startswith(prefix):
-                    yield Completion(
-                        user,
-                        start_position=-len(prefix),
-                        style="fg:blue bold",  # 蓝色加粗
-                    )
+        text_before = document.text_before_cursor
+        at_pos = text_before.rfind("@")
+        if at_pos == -1:
+            return
+        prefix = text_before[at_pos + 1 :]
+        for user in self.users:
+            if user.startswith(prefix):
+                yield Completion(
+                    user,
+                    start_position=-len(prefix),
+                    style="fg:#000000 bg:#008888 bold",
+                )
 
 
 def pretty_print_messages(message, **kwargs) -> None:

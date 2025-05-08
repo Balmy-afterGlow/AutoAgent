@@ -56,10 +56,13 @@ def import_agents_recursively(base_dir: str, base_package: str):
 
 
 # get the current directory and import all agents
+# 动态导入当前目录下的所有agents
+# 这里动态导入的目的是为了自动执行模块级代码（装饰器/全局语句），执行模块才会使用到装饰器注册到registry中
 current_dir = os.path.dirname(__file__)
 import_agents_recursively(current_dir, "autoagent.agents")
 
 # export all agent creation functions
+# 注入当前模块的全局作用域，动态导入的模块内容不会自动成为全局名称
 globals().update(registry.agents)
 globals().update(registry.plugin_agents)
 
