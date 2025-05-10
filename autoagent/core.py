@@ -22,7 +22,12 @@ from .types import (
 from litellm.types.utils import ChatCompletionMessageToolCall, Function, Message
 from litellm import completion, acompletion
 from litellm.utils import supports_function_calling
-from litellm.types.utils import ModelResponse, Choices
+from litellm.types.utils import (
+    ModelResponse,
+    Choices,
+    StreamingChoices,
+    ModelResponseStream,
+)
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 from pathlib import Path
 from .logger import MetaChainLogger, LoggerManager
@@ -139,7 +144,7 @@ class MetaChain:
     def _preprocess_tools_and_history(
         self,
         agent: Agent,
-        history: List,
+        history: list,
         context_variables: dict,
         model_override: str | None,
     ):
@@ -266,6 +271,107 @@ class MetaChain:
 
         return message_be_return
 
+    def _handle_function_result(self, result) -> Result:
+        match result:
+            case Result() as result:
+                return result
+
+            case Agent() as agent:
+                return Result(
+                    value=json.dumps({"assistant": agent.name}),
+                    agent=agent,
+                )
+            case _:
+                try:
+                    return Result(value=str(result))
+                except Exception as e:
+                    error_message = f"Failed to cast response to string: {result}. Make sure agent functions return a string or Result object. Error: {str(e)}"
+                    self.logger.info(
+                        error_message, title="Handle Function Result Error", color="red"
+                    )
+                    raise TypeError(error_message)
+
+    def _handle_tool_calls(
+        self,
+        agent: Agent,
+        tool_calls: List[ChatCompletionMessageToolCall],
+        functions: List[AgentFunction],
+        context_variables: dict,
+        handle_mm_func: Callable[[], str] | None = None,
+    ) -> Response:
+        function_map = {f.__name__: f for f in functions}
+        partial_response = Response(messages=[], agent=None, context_variables={})
+
+        for tool_call in tool_calls:
+            name = tool_call.function.name
+            # handle missing tool case, skip to next tool
+            if name not in function_map:
+                self.logger.info(
+                    f"Tool {name} not found in function map. You are recommended to use `run_tool` to run this tool.",
+                    title="Tool Call Error",
+                )
+                partial_response.messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": name,
+                        "content": f"Error: Tool {name} not found. You are recommended to use `run_tool` to run this tool.",
+                    }
+                )
+                continue
+            args = json.loads(tool_call.function.arguments)
+            func = function_map[name]
+            if __CTX_VARS_NAME__ in inspect.signature(func).parameters.keys():
+                args[__CTX_VARS_NAME__] = context_variables
+            raw_result = function_map[name](**args)
+
+            result: Result = self._handle_function_result(raw_result)
+
+            partial_response.messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": name,
+                    "content": f"{result.value}\n{result.task_context if result.task_context else ''}",
+                }
+            )
+
+            self.logger.print_message_block(partial_response.messages[-1])
+            if result.image:
+                assert (
+                    handle_mm_func
+                ), f"handle_mm_func is not provided, but an image is returned by tool call {name}({tool_call.function.arguments})"
+                partial_response.messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            # {"type":"text", "text":f"After take last action `{name}({tool_call.function.arguments})`, the image of current page is shown below. Please take next action based on the image, the current state of the page as well as previous actions and observations."},
+                            {
+                                "type": "text",
+                                "text": handle_mm_func(
+                                    name, tool_call.function.arguments
+                                ),
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{result.image}"
+                                },
+                            },
+                        ],
+                    }
+                )
+
+            # update是字典内置方法，用于将另一个字典或键值对的可迭代对象合并到当前字典中
+            # 已有的键覆盖，未有的键添加
+            partial_response.context_variables.update(result.context_variables)
+            if result.agent:
+                partial_response.agent = result.agent
+            elif name != "case_resolved" and name != "case_not_resolved":
+                partial_response.agent = agent
+
+        return partial_response
+
     def get_chat_completion(
         self,
         agent: Agent,
@@ -340,110 +446,7 @@ class MetaChain:
 
         return llm_response, tools_schema
 
-    def handle_function_result(self, result) -> Result:
-        match result:
-            case Result() as result:
-                return result
-
-            case Agent() as agent:
-                return Result(
-                    value=json.dumps({"assistant": agent.name}),
-                    agent=agent,
-                )
-            case _:
-                try:
-                    return Result(value=str(result))
-                except Exception as e:
-                    error_message = f"Failed to cast response to string: {result}. Make sure agent functions return a string or Result object. Error: {str(e)}"
-                    self.logger.info(
-                        error_message, title="Handle Function Result Error", color="red"
-                    )
-                    raise TypeError(error_message)
-
-    def handle_tool_calls(
-        self,
-        tool_calls: List[ChatCompletionMessageToolCall],
-        functions: List[AgentFunction],
-        context_variables: dict,
-        handle_mm_func: Callable[[], str] = None,
-    ) -> Response:
-        function_map = {f.__name__: f for f in functions}
-        partial_response = Response(messages=[], agent=None, context_variables={})
-
-        for tool_call in tool_calls:
-            name = tool_call.function.name
-            # handle missing tool case, skip to next tool
-            if name not in function_map:
-                self.logger.info(
-                    f"Tool {name} not found in function map. You are recommended to use `run_tool` to run this tool.",
-                    title="Tool Call Error",
-                )
-                partial_response.messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": name,
-                        "content": f"Error: Tool {name} not found. You are recommended to use `run_tool` to run this tool.",
-                    }
-                )
-                continue
-            args = json.loads(tool_call.function.arguments)
-
-            # debug_print(
-            #     debug, f"Processing tool call: {name} with arguments {args}")
-            func = function_map[name]
-            # pass context_variables to agent functions
-            # if __CTX_VARS_NAME__ in func.__code__.co_varnames:
-            #     args[__CTX_VARS_NAME__] = context_variables
-            if __CTX_VARS_NAME__ in inspect.signature(func).parameters.keys():
-                args[__CTX_VARS_NAME__] = context_variables
-            raw_result = function_map[name](**args)
-
-            result: Result = self.handle_function_result(raw_result)
-
-            partial_response.messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "name": name,
-                    "content": result.value,
-                }
-            )
-
-            self.logger.print_message_block(partial_response.messages[-1])
-            if result.image:
-                assert (
-                    handle_mm_func
-                ), f"handle_mm_func is not provided, but an image is returned by tool call {name}({tool_call.function.arguments})"
-                partial_response.messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            # {"type":"text", "text":f"After take last action `{name}({tool_call.function.arguments})`, the image of current page is shown below. Please take next action based on the image, the current state of the page as well as previous actions and observations."},
-                            {
-                                "type": "text",
-                                "text": handle_mm_func(
-                                    name, tool_call.function.arguments
-                                ),
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/png;base64,{result.image}"
-                                },
-                            },
-                        ],
-                    }
-                )
-
-            # update是字典内置方法，用于将另一个字典或键值对的可迭代对象合并到当前字典中
-            # 已有的键覆盖，未有的键添加
-            partial_response.context_variables.update(result.context_variables)
-            if result.agent:
-                partial_response.agent = result.agent
-
-        return partial_response
-
+    # NOTE: HKUDS original plan, its runnable example code is in ’repl‘ directory
     def run_and_stream(
         self,
         agent: Agent,
@@ -485,7 +488,9 @@ class MetaChain:
 
             yield {"delim": "start"}
             for chunk in completion:
-                delta = json.loads(chunk.choices[0].delta.json())
+                assert isinstance(chunk, ModelResponseStream)
+                assert isinstance(chunk.choices[0], StreamingChoices)
+                delta = json.loads(chunk.choices[0].delta.to_json())
                 if delta["role"] == "assistant":
                     delta["sender"] = active_agent.name
                 yield delta
@@ -516,8 +521,8 @@ class MetaChain:
                 tool_calls.append(tool_call_object)
 
             # handle function calls, updating context_variables, and switching agents
-            partial_response = self.handle_tool_calls(
-                tool_calls, active_agent.functions, context_variables
+            partial_response = self._handle_tool_calls(
+                active_agent, tool_calls, active_agent.functions, context_variables
             )
             history.extend(partial_response.messages)
             context_variables.update(partial_response.context_variables)
@@ -540,10 +545,8 @@ class MetaChain:
         model_override: str | None = None,
         stream: bool = False,
         max_turns: float = float("inf"),
-        execute_tools: bool = True,
     ):
         active_agent = agent
-        enter_agent = agent
         context_variables = copy.copy(context_variables)
         history = copy.deepcopy(messages)
         init_len = len(messages)
@@ -622,75 +625,28 @@ class MetaChain:
 
             history.append(message.to_dict())
 
-            if enter_agent.tool_choice != "required":
-                if (
-                    not message.tool_calls and active_agent.name == enter_agent.name
-                ) or not execute_tools:
-                    self.logger.info("Ending turn.", title="End Turn")
-                    break
-            else:
-                if (
-                    message.tool_calls
-                    and message.tool_calls[0].function.name == "case_resolved"
-                ) or not execute_tools:
-
-                    self.logger.info(
-                        "Ending turn with case resolved.", title="End Turn"
-                    )
-
-                    partial_response = self.handle_tool_calls(
-                        message.tool_calls,
-                        active_agent.functions,
-                        context_variables,
-                        handle_mm_func=active_agent.handle_mm_func,
-                    )
-
-                    history.extend(partial_response.messages)
-                    context_variables.update(partial_response.context_variables)
-                    break
-                elif (
-                    message.tool_calls
-                    and message.tool_calls[0].function.name == "case_not_resolved"
-                ) or not execute_tools:
-
-                    self.logger.info(
-                        "Ending turn with case not resolved.", title="End Turn"
-                    )
-
-                    partial_response = self.handle_tool_calls(
-                        message.tool_calls,
-                        active_agent.functions,
-                        context_variables,
-                        handle_mm_func=active_agent.handle_mm_func,
-                    )
-
-                    history.extend(partial_response.messages)
-                    context_variables.update(partial_response.context_variables)
-                    break
-                elif (not message.tool_calls) or not execute_tools:
-                    self.logger.info(
-                        "Ending turn with no tool calls.", title="End Turn"
-                    )
-                    break
-
-            # if (message.tool_calls and message.tool_calls[0].function.name == "case_resolved") or not execute_tools:
-            #     debug_print(debug, "Ending turn.", log_path=log_path, title="End Turn", color="red")
-            #     break
-
-            # handle function calls, updating context_variables, and switching agents
+            task_status = ""
             if message.tool_calls:
-                partial_response = self.handle_tool_calls(
+                assert isinstance(message.tool_calls[0].function.name, str)
+                task_status = (message.tool_calls[0].function.name).replace("_", " ")
+                partial_response = self._handle_tool_calls(
+                    active_agent,
                     message.tool_calls,
                     active_agent.functions,
                     context_variables,
                     handle_mm_func=active_agent.handle_mm_func,
                 )
             else:
-                partial_response = Response(messages=[message])
+                task_status = "no_tool_calls"
+                partial_response = Response(messages=[])
             history.extend(partial_response.messages)
             context_variables.update(partial_response.context_variables)
-            if partial_response.agent:
-                active_agent = partial_response.agent
+            if task_status == "additional_inquiry":
+                break
+            elif not partial_response.agent:
+                self.logger.info(f"Ending turn with {task_status}.", title="End Turn")
+                break
+            active_agent = partial_response.agent
 
         return Response(
             messages=history[init_len:],
@@ -880,7 +836,7 @@ class MetaChain:
                     self.logger.info(
                         "Ending turn with case resolved.", title="End Turn", color="red"
                     )
-                    partial_response = self.handle_tool_calls(
+                    partial_response = self._handle_tool_calls(
                         message.tool_calls,
                         active_agent.functions,
                         context_variables,
@@ -899,7 +855,7 @@ class MetaChain:
                         title="End Turn",
                         color="red",
                     )
-                    partial_response = self.handle_tool_calls(
+                    partial_response = self._handle_tool_calls(
                         message.tool_calls,
                         active_agent.functions,
                         context_variables,
@@ -921,7 +877,7 @@ class MetaChain:
 
             # handle function calls, updating context_variables, and switching agents
             if message.tool_calls:
-                partial_response = self.handle_tool_calls(
+                partial_response = self._handle_tool_calls(
                     message.tool_calls,
                     active_agent.functions,
                     context_variables,

@@ -360,7 +360,7 @@ def user_mode(model: str, context_variables: dict):
     agent = system_triage_agent
     agents = {system_triage_agent.name.replace(" ", "_"): system_triage_agent}
     for agent_name, call_func in system_triage_agent.agent_teams.items():
-        agents[agent_name.replace(" ", "_")] = call_func("").agent
+        agents[agent_name.replace(" ", "_")] = call_func("", "").agent
     agents["Upload_files"] = "select"
     style = Style.from_dict(
         {
@@ -409,9 +409,8 @@ def user_mode(model: str, context_variables: dict):
         print()
 
         if hasattr(agent, "name"):
-            agent_name = agent.name
             console.print(
-                f"[bold green][bold magenta]@{agent_name}[/bold magenta] will help you, be patient...[/bold green]"
+                f"[bold green][bold magenta]@{agent.name}[/bold magenta] will help you, be patient...[/bold green]"
             )
             if len(upload_infos) > 0:
                 query = "{}\n\nUser uploaded files:\n{}".format(
@@ -435,7 +434,7 @@ def user_mode(model: str, context_variables: dict):
             else:
                 model_answer = model_answer_raw
             console.print(
-                f"[bold green][bold magenta]@{agent_name}[/bold magenta] has finished with the response:\n[/bold green] [bold blue]{model_answer}[/bold blue]"
+                f"[bold green][bold magenta]@{agent.name}[/bold magenta] has finished with the response:\n[/bold green] [bold blue]{model_answer}[/bold blue]"
             )
             agent = response.agent
         elif agent == "select":

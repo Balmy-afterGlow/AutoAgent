@@ -15,6 +15,14 @@ def case_resolved(result: str):
     return f"Case resolved. No further actions are needed. The result of the case resolution is: {result}"
 
 
+@register_tool("additional_inquiry")
+def additional_inquiry(answer: str):
+    """
+    Use this function when the user needs to provide additional information.
+    """
+    return f"Additional information is needed. The answer to the question is: {answer}"
+
+
 @register_tool("case_not_resolved")
 def case_not_resolved(failure_reason: str):
     """
@@ -25,7 +33,3 @@ def case_not_resolved(failure_reason: str):
         failure_reason: The reason why the case is not resolved.
     """
     return f"Case not resolved. No further actions are needed. The reason is: {failure_reason}"
-
-
-if __name__ == "__main__":
-    print(case_resolved())

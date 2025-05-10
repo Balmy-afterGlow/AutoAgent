@@ -55,7 +55,7 @@ multiple lines
 Reminder:
 - Function calls MUST follow the specified format, start with <function= and end with </function>
 - Required parameters MUST be specified
-- Only call one function at a time
+- You can try calling multiple functions at once
 - You may provide optional reasoning for your function call in natural language BEFORE the function call, but NOT after.
 - If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
 """
@@ -688,71 +688,75 @@ def convert_non_fncall_messages_to_fncall_messages(
         # Handle assistant messages
         elif role == "assistant":
             if isinstance(content, str):
-                # content = _fix_stopword(content) # 遗漏标签的情况比较少，并且处理逻辑也有问题，暂时先注释掉
-                fn_match = re.search(FN_REGEX_PATTERN, content, re.DOTALL)
+                # Find all function calls in the content
+                fn_matches = list(re.finditer(FN_REGEX_PATTERN, content, re.DOTALL))
             elif isinstance(content, list):
                 if content and content[-1]["type"] == "text":
-                    content[-1]["text"] = _fix_stopword(content[-1]["text"])
-                    fn_match = re.search(
-                        FN_REGEX_PATTERN, content[-1]["text"], re.DOTALL
+                    fn_matches = list(
+                        re.finditer(FN_REGEX_PATTERN, content[-1]["text"], re.DOTALL)
                     )
                 else:
-                    fn_match = None
-                fn_match_exists = any(
-                    item.get("type") == "text"
-                    and re.search(FN_REGEX_PATTERN, item["text"], re.DOTALL)
-                    for item in content
-                )
-                if fn_match_exists and not fn_match:
-                    raise FunctionCallConversionError(
-                        f"Expecting function call in the LAST index of content list. But got content={content}"
-                    )
+                    fn_matches = []
             else:
                 raise FunctionCallConversionError(
                     f"Unexpected content type {type(content)}. Expected str or list. Content: {content}"
                 )
 
-            if fn_match:
-                fn_name = fn_match.group(1)
-                fn_body = fn_match.group(2)
-                matching_tool = next(
-                    (
-                        tool["function"]
-                        for tool in tools
-                        if tool["type"] == "function"
-                        and tool["function"]["name"] == fn_name
-                    ),
-                    None,
-                )
-                # Validate function exists in tools
-                if not matching_tool:
-                    raise FunctionCallValidationError(
-                        f"Function '{fn_name}' not found in available tools: {[tool['function']['name'] for tool in tools if tool['type'] == 'function']}"
+            if fn_matches:
+                # Process all function calls
+                tool_calls = []
+                for fn_match in fn_matches:
+                    fn_name = fn_match.group(1)
+                    fn_body = fn_match.group(2)
+                    matching_tool = next(
+                        (
+                            tool["function"]
+                            for tool in tools
+                            if tool["type"] == "function"
+                            and tool["function"]["name"] == fn_name
+                        ),
+                        None,
+                    )
+                    # Validate function exists in tools
+                    if not matching_tool:
+                        raise FunctionCallValidationError(
+                            f"Function '{fn_name}' not found in available tools: {[tool['function']['name'] for tool in tools if tool['type'] == 'function']}"
+                        )
+
+                    # Parse parameters
+                    param_matches = re.finditer(
+                        FN_PARAM_REGEX_PATTERN, fn_body, re.DOTALL
+                    )
+                    params = _extract_and_validate_params(
+                        matching_tool, param_matches, fn_name
                     )
 
-                # Parse parameters
-                param_matches = re.finditer(FN_PARAM_REGEX_PATTERN, fn_body, re.DOTALL)
-                params = _extract_and_validate_params(
-                    matching_tool, param_matches, fn_name
-                )
+                    # Create tool call with unique ID
+                    tool_call_id = f"toolu_{tool_call_counter:02d}"
+                    tool_call = {
+                        "index": len(tool_calls)
+                        + 1,  # Increment index for each tool call
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": fn_name, "arguments": json.dumps(params)},
+                    }
+                    tool_call_counter += 1  # Increment counter
+                    tool_calls.append(tool_call)
 
-                # Create tool call with unique ID
-                tool_call_id = f"toolu_{tool_call_counter:02d}"
-                tool_call = {
-                    "index": 1,  # always 1 because we only support **one tool call per message**
-                    "id": tool_call_id,
-                    "type": "function",
-                    "function": {"name": fn_name, "arguments": json.dumps(params)},
-                }
-                tool_call_counter += 1  # Increment counter
-
-                # Remove the function call part from content
+                # Remove all function calls from content
                 if isinstance(content, list):
                     assert content and content[-1]["type"] == "text"
-                    content[-1]["text"] = (
-                        content[-1]["text"].split("<function=")[0].strip()
-                    )
+                    text_content = content[-1]["text"]
+                    for fn_match in reversed(
+                        fn_matches
+                    ):  # Process in reverse to maintain indices
+                        text_content = (
+                            text_content[: fn_match.start()]
+                            + text_content[fn_match.end() :]
+                        )
+                    content[-1]["text"] = text_content.strip()
                 elif isinstance(content, str):
+                    # Keep the content as is to preserve any text before/after function calls
                     pass
                     # 一般在此处的content都是以“<function=”开头，所以如果启用这段代码则会取空白内容
                     # 虽然正常的原生函数支持模型的content就是空值，但是为了查看模型输出的原始内容，这里选择保留
@@ -763,7 +767,7 @@ def convert_non_fncall_messages_to_fncall_messages(
                     )
 
                 converted_messages.append(
-                    {"role": "assistant", "content": content, "tool_calls": [tool_call]}
+                    {"role": "assistant", "content": content, "tool_calls": tool_calls}
                 )
             else:
                 # No function call, keep message as is
@@ -827,20 +831,40 @@ def convert_fn_messages_to_non_fn_messages(messages: list[dict]) -> list[dict]:
     messages_without_tool_role = []
     for idx, message in enumerate(messages):
         if message["role"] == "tool":
-            assert (
-                messages[idx - 1]["role"] == "assistant"
+            # Find the previous assistant message
+            if (
+                messages_without_tool_role
                 and messages_without_tool_role[-1]["role"] == "assistant"
-            )
-            messages_without_tool_role[-1][
-                "content"
-            ] = f"""
+            ):
+                # Append tool result to the previous assistant message
+                tool_result = f"""
 I have executed the tool {message["name"]} and the result is {message["content"]}.
 """
+                if messages_without_tool_role[-1]["content"]:
+                    messages_without_tool_role[-1]["content"] += tool_result
+                else:
+                    messages_without_tool_role[-1]["content"] = tool_result
+            else:
+                # If no previous assistant message, create a new one
+                messages_without_tool_role.append(
+                    {
+                        "role": "assistant",
+                        "content": f"""
+I have executed the tool {message["name"]} and the result is {message["content"]}.
+""",
+                    }
+                )
         elif message["role"] == "assistant":
-            if message["tool_calls"] is not None:
-                msg_content = f"""
-I want to use the tool named {message["tool_calls"][0]["function"]["name"]}, with the following arguments: {message["tool_calls"][0]["function"]["arguments"]}.
+            if message.get("tool_calls"):
+                # Handle multiple tool calls
+                tool_calls_text = []
+                for tool_call in message["tool_calls"]:
+                    tool_calls_text.append(
+                        f"""
+I want to use the tool named {tool_call["function"]["name"]}, with the following arguments: {tool_call["function"]["arguments"]}.
 """
+                    )
+                msg_content = "".join(tool_calls_text)
             else:
                 msg_content = message["content"]
             messages_without_tool_role.append(

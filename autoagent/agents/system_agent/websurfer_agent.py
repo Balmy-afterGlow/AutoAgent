@@ -19,7 +19,7 @@ from constant import DOCKER_WORKPLACE_NAME, LOCAL_ROOT
 
 
 @register_agent(name="Web Surfer Agent", func_name="get_websurfer_agent")
-def get_websurfer_agent(model: str = "gpt-4o", **kwargs):
+def get_websurfer_agent(model: str = "gpt-4o", **kwargs) -> Agent:
 
     def handle_mm_func(tool_name, tool_args):
         return f"After take last action `{tool_name}({tool_args})`, the image of current page is shown below. Please take next action based on the image, the current state of the page as well as previous actions and observations."

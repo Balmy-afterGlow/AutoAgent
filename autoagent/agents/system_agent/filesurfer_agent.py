@@ -16,7 +16,7 @@ from constant import LOCAL_ROOT, DOCKER_WORKPLACE_NAME
 
 
 @register_agent(name="File Surfer Agent", func_name="get_filesurfer_agent")
-def get_filesurfer_agent(model: str = "gpt-4o", **kwargs):
+def get_filesurfer_agent(model: str = "gpt-4o", **kwargs) -> Agent:
 
     def handle_mm_func(tool_name, tool_args):
         return f"After using tool `{tool_name}({tool_args})`, I have opened the image I want to see and prepared a question according to the image. Please answer the question based on the image."

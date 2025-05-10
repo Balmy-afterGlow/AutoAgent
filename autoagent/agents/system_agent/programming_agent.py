@@ -127,7 +127,7 @@ Press CTRL+C to quit""",
 
 @register_agent(name="Coding Agent", func_name="get_coding_agent")
 @register_plugin_agent(name="Coding Agent", func_name="get_coding_agent")
-def get_coding_agent(model: str, **kwargs):
+def get_coding_agent(model: str, **kwargs) -> Agent:
     def instructions(context_variables):
         code_env: Union[DockerEnv, LocalEnv] = context_variables.get(
             "code_env", LocalEnv()
