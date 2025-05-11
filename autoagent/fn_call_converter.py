@@ -55,8 +55,7 @@ multiple lines
 Reminder:
 - Function calls MUST follow the specified format, start with <function= and end with </function>
 - Required parameters MUST be specified
-- You can try calling multiple functions at once
-- You may provide optional reasoning for your function call in natural language BEFORE the function call, but NOT after.
+- You can try to call multiple tool at once without affecting the environment state. If there are other instructions that constrain tool calls, follow them
 - If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
 """
 
@@ -832,28 +831,15 @@ def convert_fn_messages_to_non_fn_messages(messages: list[dict]) -> list[dict]:
     for idx, message in enumerate(messages):
         if message["role"] == "tool":
             # Find the previous assistant message
-            if (
+            assert (
                 messages_without_tool_role
                 and messages_without_tool_role[-1]["role"] == "assistant"
-            ):
-                # Append tool result to the previous assistant message
-                tool_result = f"""
+            )
+            # Append tool result to the previous assistant message
+            tool_result = f"""
 I have executed the tool {message["name"]} and the result is {message["content"]}.
 """
-                if messages_without_tool_role[-1]["content"]:
-                    messages_without_tool_role[-1]["content"] += tool_result
-                else:
-                    messages_without_tool_role[-1]["content"] = tool_result
-            else:
-                # If no previous assistant message, create a new one
-                messages_without_tool_role.append(
-                    {
-                        "role": "assistant",
-                        "content": f"""
-I have executed the tool {message["name"]} and the result is {message["content"]}.
-""",
-                    }
-                )
+            messages_without_tool_role[-1]["content"] += tool_result
         elif message["role"] == "assistant":
             if message.get("tool_calls"):
                 # Handle multiple tool calls

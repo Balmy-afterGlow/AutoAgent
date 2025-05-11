@@ -319,6 +319,7 @@ class MetaChain:
                     }
                 )
                 continue
+            print(f"[grey58]\n[工具调用开始] 正在调用 {name}...[/]\n")
             args = json.loads(tool_call.function.arguments)
             func = function_map[name]
             if __CTX_VARS_NAME__ in inspect.signature(func).parameters.keys():
@@ -332,7 +333,10 @@ class MetaChain:
                     "role": "tool",
                     "tool_call_id": tool_call.id,
                     "name": name,
-                    "content": f"{result.value}\n{result.task_context if result.task_context else ''}",
+                    "content": f"""{result.value}
+
+Task Context:
+{json.dumps(result.task_context, indent=2) if result.task_context else 'No task context available'}""",
                 }
             )
 
@@ -596,21 +600,10 @@ class MetaChain:
             if not stream:
                 if hasattr(message, "reasoning_content") and message.reasoning_content:
                     print(
-                        f"[grey58]\n[推理过程开始]\n\n{message.reasoning_content}[/]",
+                        f"[grey58]\n[推理过程开始]\n\n{message.reasoning_content}[/]\n",
                     )
                 if message.content is not None and message.content != "":
-                    print(f"[grey58]\n[AI答复]\n\n{message.content}[/]")
-                if message.tool_calls is not None:
-                    print(
-                        f"[grey58]\n[工具调用开始] 正在调用 {message.tool_calls[0].function.name}...[/]"
-                    )
-                print()
-            elif not is_native_support_for_functions:
-                if message.tool_calls is not None:
-                    print(
-                        f"[grey58][工具调用开始] 正在调用 {message.tool_calls[0].function.name}...[/]"
-                    )
-                print()
+                    print(f"[grey58]\n[AI答复]\n\n{message.content}[/]\n")
 
             if hasattr(message, "reasoning_content") and message.reasoning_content:
                 self.logger.info(

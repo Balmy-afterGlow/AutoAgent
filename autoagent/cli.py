@@ -360,7 +360,7 @@ def user_mode(model: str, context_variables: dict):
     agent = system_triage_agent
     agents = {system_triage_agent.name.replace(" ", "_"): system_triage_agent}
     for agent_name, call_func in system_triage_agent.agent_teams.items():
-        agents[agent_name.replace(" ", "_")] = call_func("", "").agent
+        agents[agent_name.replace(" ", "_")] = call_func("", "{}").agent
     agents["Upload_files"] = "select"
     style = Style.from_dict(
         {

@@ -27,20 +27,12 @@ def print_callback(chunk: ModelResponseStream, last_type: str) -> str:
 
     if hasattr(delta, "reasoning_content") and delta.reasoning_content:
         current_type = "reasoning"
-    elif delta.tool_calls is not None:
-        current_type = "tool_call"
     elif delta.content is not None:
         current_type = "content"
 
     if current_type != "none" and current_type != last_type:
         if current_type == "reasoning":
             print("[grey58]\n[推理过程开始][/]", end="\n\n", flush=True)
-        elif current_type == "tool_call":
-            print(
-                f"[grey58]\n\n[工具调用开始] [/]",
-                end="",
-                flush=True,
-            )
         elif current_type == "content":
             print("[grey58]\n\n[AI答复][/]", end="\n\n", flush=True)
         last_type = current_type
@@ -48,15 +40,6 @@ def print_callback(chunk: ModelResponseStream, last_type: str) -> str:
     if current_type == "reasoning":
         assert delta.reasoning_content is not None
         print(f"[grey58]{delta.reasoning_content}[/]", end="", flush=True)
-    elif current_type == "tool_call":
-        assert delta.tool_calls is not None
-        tool_name = delta.tool_calls[0].function.name
-        if tool_name is not None:
-            print(
-                f"[grey58]正在调用 {tool_name}...[/]",
-                end="",
-                flush=True,
-            )
     elif current_type == "content":
         assert delta.content is not None
         print(f"[grey58]{delta.content}[/]", end="", flush=True)

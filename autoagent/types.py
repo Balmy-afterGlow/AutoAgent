@@ -35,7 +35,7 @@ class Result(BaseModel):
     """
 
     value: str = ""
-    task_context: str = ""
+    task_context: dict = {}
     agent: Optional[Agent] = None
     context_variables: dict = {}
     image: Optional[str] = None  # base64 encoded image
