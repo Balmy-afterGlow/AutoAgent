@@ -380,7 +380,7 @@ The form should be:
     </system_output>
     <agents>
         <agent category="existing">
-            <name>Web Surfer Agent</name>
+            <name>Web Agent</name>
             <description>This agent is used to search the web for the user's topic.</description>
         </agent>
         <agent category="new">
@@ -440,7 +440,7 @@ The form should be:
                 <event>on_start</event>
             </listen>
             <agent>
-                <name>Web Surfer Agent</name>
+                <name>Web Agent</name>
                 <model>claude-3-5-sonnet-20241022</model>
             </agent>
         </event>

@@ -15,8 +15,8 @@ from inspect import signature
 from constant import LOCAL_ROOT, DOCKER_WORKPLACE_NAME
 
 
-@register_agent(name="File Surfer Agent", func_name="get_filesurfer_agent")
-def get_filesurfer_agent(model: str = "gpt-4o", **kwargs) -> Agent:
+@register_agent(name="Local File Agent", func_name="get_local_file_agent")
+def get_local_file_agent(model: str = "gpt-4o", **kwargs) -> Agent:
 
     def handle_mm_func(tool_name, tool_args):
         return f"After using tool `{tool_name}({tool_args})`, I have opened the image I want to see and prepared a question according to the image. Please answer the question based on the image."
@@ -35,9 +35,9 @@ But IT DOES NOT HANDLE IMAGES, you should use `visual_question_answering` to see
 
 If the converted markdown text has more than 1 page, you can use `page_up`, `page_down`, `find_on_page_ctrl_f`, `find_next` to navigate through the pages.
 
-When you think you have completed the task the `System Triage Agent` asked you to do, you should use `transfer_back_to_triage_agent` to transfer the conversation back to the `System Triage Agent`. And you should not stop to try to solve the user's request by transferring to `System Triage Agent` only until the task is completed.
+When you think you have completed the task the `Orchestrator Agent` asked you to do, you should use `transfer_back_to_triage_agent` to transfer the conversation back to the `Orchestrator Agent`. And you should not stop to try to solve the user's request by transferring to `Orchestrator Agent` only until the task is completed.
 
-If you are unable to open the file, you can transfer the conversation back to the `System Triage Agent`, and let the `Coding Agent` try to solve the problem by coding.
+If you are unable to open the file, you can transfer the conversation back to the `Orchestrator Agent`, and let the `Coding Agent` try to solve the problem by coding.
 """
 
     tool_list = [
@@ -49,7 +49,7 @@ If you are unable to open the file, you can transfer the conversation back to th
         visual_question_answering,
     ]
     return Agent(
-        name="File Surfer Agent",
+        name="Local File Agent",
         model=model,
         instructions=instructions,
         functions=tool_list,

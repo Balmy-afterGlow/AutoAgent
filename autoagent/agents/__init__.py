@@ -1,4 +1,4 @@
-# from autoagent.agents.programming_agent import get_programming_agent
+# from autoagent.agents.coding_agent import get_coding_agent
 # from autoagent.agents.tool_retriver_agent import get_tool_retriver_agent
 # from autoagent.agents.agent_check_agent import get_agent_check_agent
 # from autoagent.agents.tool_check_agent import get_tool_check_agent

@@ -1,6 +1,6 @@
-from .filesurfer_agent import get_filesurfer_agent
-from .programming_agent import get_coding_agent
-from .websurfer_agent import get_websurfer_agent
+from .local_file_agent import get_local_file_agent
+from .coding_agent import get_coding_agent
+from .web_agent import get_web_agent
 from autoagent.registry import register_agent
 from autoagent.types import Agent, Result
 from autoagent.tools.inner import case_resolved, case_not_resolved, additional_inquiry
@@ -109,24 +109,24 @@ def safe_json_loads(
     return default
 
 
-@register_agent(name="System Triage Agent", func_name="get_system_triage_agent")
-def get_system_triage_agent(model: str, **kwargs):
+@register_agent(name="Orchestrator Agent", func_name="get_orchestrator_agent")
+def get_orchestrator_agent(model: str, **kwargs):
     """
-    This is the `System Triage Agent`, it can help the user to determine which agent is best suited to handle the user's request under the current context, and transfer the conversation to that agent.
+    This is the `Orchestrator Agent`, it can help the user to determine which agent is best suited to handle the user's request under the current context, and transfer the conversation to that agent.
 
     Args:
         model: The model to use for the agent.
         **kwargs: Additional keyword arguments, `file_env`, `web_env` and `code_env` are required.
     """
-    filesurfer_agent = get_filesurfer_agent(model)
-    websurfer_agent = get_websurfer_agent(model)
+    local_file_agent = get_local_file_agent(model)
+    web_agent = get_web_agent(model)
     coding_agent = get_coding_agent(model)
     instructions = f"""You are a helpful assistant that can help the user with their request.
 Based on the state of solving user's task, your responsibility is to determine which agent is best suited to handle the user's request under the current context, and transfer the conversation to that agent. And you should not stop to try to solve the user's request by transferring to another agent only until the task is completed.
 
 There are three agents you can transfer to:
-1. use `transfer_to_filesurfer_agent` to transfer to {filesurfer_agent.name}, it can help you to open any type of local files and browse the content of them.
-2. use `transfer_to_websurfer_agent` to transfer to {websurfer_agent.name}, it can help you to open any website and browse any content on it.
+1. use `transfer_to_local_file_agent` to transfer to {local_file_agent.name}, it can help you to open any type of local files and browse the content of them.
+2. use `transfer_to_web_agent` to transfer to {web_agent.name}, it can help you to open any website and browse any content on it.
 3. use `transfer_to_coding_agent` to transfer to {coding_agent.name}, it can help you to write code to solve the user's request, especially some complex tasks.
 """
 
@@ -189,8 +189,8 @@ When transferring control:
 4. Pass complete context to the next agent
 
 Available specialized agents:
-1. {filesurfer_agent.name}: Handles file access and processing tasks. Use `transfer_to_filesurfer_agent` for file-related operations.
-2. {websurfer_agent.name}: Handles web browsing and online research. Use `transfer_to_websurfer_agent` for internet-related tasks.
+1. {local_file_agent.name}: Handles file access and processing tasks. Use `transfer_to_local_file_agent` for file-related operations.
+2. {web_agent.name}: Handles web browsing and online research. Use `transfer_to_web_agent` for internet-related tasks.
 3. {coding_agent.name}: Creates and explains code solutions. Use `transfer_to_coding_agent` for programming tasks.
 
 When reviewing an agent's response, pay careful attention to:
@@ -200,7 +200,7 @@ When reviewing an agent's response, pay careful attention to:
 
 Only mark a task as resolved when the user's entire request has been fulfilled completely.
 
-You need to remember that any function call under System Triage Agent must be called separately.
+You need to remember that any function call under Orchestrator Agent must be called separately.
 """
     tool_choice = "required"
     tools = (
@@ -208,8 +208,8 @@ You need to remember that any function call under System Triage Agent must be ca
         if tool_choice == "required"
         else []
     )
-    system_triage_agent = Agent(
-        name="System Triage Agent",
+    orchestrator_agent = Agent(
+        name="Orchestrator Agent",
         model=model,
         instructions=optimized_instructions,
         functions=tools,
@@ -217,19 +217,19 @@ You need to remember that any function call under System Triage Agent must be ca
         parallel_tool_calls=False,
     )
 
-    def transfer_to_filesurfer_agent(sub_task_description: str, task_context: str):
+    def transfer_to_local_file_agent(sub_task_description: str, task_context: str):
         """
         Args:
-            sub_task_description: The detailed description of the sub-task that the `System Triage Agent` will ask the `File Surfer Agent` to do.
+            sub_task_description: The detailed description of the sub-task that the `Orchestrator Agent` will ask the `Local File Agent` to do.
             task_context: A JSON string containing the task context with task list and status.
 
         [IMPORTANT] Please make sure that the generated json has no format errors.
 
         Example of valid task_context:
         {
-            "current_agent": "System Triage Agent",
+            "current_agent": "Orchestrator Agent",
             "task_list": {
-                "File Surfer Agent": {
+                "Local File Agent": {
                     "subtasks": [
                         {
                             "id": "task_1",
@@ -243,7 +243,7 @@ You need to remember that any function call under System Triage Agent must be ca
             },
             "context": {
                 "previous_actions": ["Initialized task", "Analyzed requirements"],
-                "important_decisions": ["Selected File Surfer Agent for file operations"],
+                "important_decisions": ["Selected Local File Agent for file operations"],
                 "constraints": ["Must maintain file permissions", "Handle large files efficiently"]
             }
         }
@@ -251,22 +251,22 @@ You need to remember that any function call under System Triage Agent must be ca
         return Result(
             value=sub_task_description,
             task_context=safe_json_loads(task_context),
-            agent=filesurfer_agent,
+            agent=local_file_agent,
         )
 
-    def transfer_to_websurfer_agent(sub_task_description: str, task_context: str):
+    def transfer_to_web_agent(sub_task_description: str, task_context: str):
         """
         Args:
-            sub_task_description: The detailed description of the sub-task that the `System Triage Agent` will ask the `Web Surfer Agent` to do.
+            sub_task_description: The detailed description of the sub-task that the `Orchestrator Agent` will ask the `Web Agent` to do.
             task_context: A JSON string containing the task context with task list and status.
 
         [IMPORTANT] Please make sure that the generated json has no format errors.
 
         Example of valid task_context:
         {
-            "current_agent": "System Triage Agent",
+            "current_agent": "Orchestrator Agent",
             "task_list": {
-                "Web Surfer Agent": {
+                "Web Agent": {
                     "subtasks": [
                         {
                             "id": "task_1",
@@ -280,7 +280,7 @@ You need to remember that any function call under System Triage Agent must be ca
             },
             "context": {
                 "previous_actions": ["Initialized task", "Analyzed requirements"],
-                "important_decisions": ["Selected Web Surfer Agent for web research"],
+                "important_decisions": ["Selected Web Agent for web research"],
                 "constraints": ["Must verify source reliability", "Handle rate limiting"]
             }
         }
@@ -288,20 +288,20 @@ You need to remember that any function call under System Triage Agent must be ca
         return Result(
             value=sub_task_description,
             task_context=safe_json_loads(task_context),
-            agent=websurfer_agent,
+            agent=web_agent,
         )
 
     def transfer_to_coding_agent(sub_task_description: str, task_context: str):
         """
         Args:
-            sub_task_description: The detailed description of the sub-task that the `System Triage Agent` will ask the `Coding Agent` to do.
+            sub_task_description: The detailed description of the sub-task that the `Orchestrator Agent` will ask the `Coding Agent` to do.
             task_context: A JSON string containing the task context with task list and status.
 
         [IMPORTANT] Please make sure that the generated json has no format errors.
 
         Example of valid task_context:
         {
-            "current_agent": "System Triage Agent",
+            "current_agent": "Orchestrator Agent",
             "task_list": {
                 "Coding Agent": {
                     "subtasks": [
@@ -333,16 +333,16 @@ You need to remember that any function call under System Triage Agent must be ca
         It must be called after confirming that the subtask has been completed. The best practice is to call this function only in a response to avoid calling it as the last function in a response to multiple function calls, which may lead to speculation that the task has been successfully completed.
 
         Args:
-            completion_description: The detailed description of the task status after a sub-agent has finished its sub-task. A sub-agent can use this tool to transfer the conversation back to the `System Triage Agent` only when it has finished its sub-task.
+            completion_description: The detailed description of the task status after a sub-agent has finished its sub-task. A sub-agent can use this tool to transfer the conversation back to the `Orchestrator Agent` only when it has finished its sub-task.
             task_context: A JSON string containing the task context with task list and status.
 
         [IMPORTANT] Please make sure that the generated json has no format errors.
 
         Example of valid task_context:
         {
-            "current_agent": "File Surfer Agent",
+            "current_agent": "Local File Agent",
             "task_list": {
-                "File Surfer Agent": {
+                "Local File Agent": {
                     "subtasks": [
                         {
                             "id": "task_1",
@@ -364,22 +364,22 @@ You need to remember that any function call under System Triage Agent must be ca
         return Result(
             value=completion_description,
             task_context=safe_json_loads(task_context),
-            agent=system_triage_agent,
+            agent=orchestrator_agent,
         )
 
-    system_triage_agent.agent_teams = {
-        filesurfer_agent.name: transfer_to_filesurfer_agent,
-        websurfer_agent.name: transfer_to_websurfer_agent,
+    orchestrator_agent.agent_teams = {
+        local_file_agent.name: transfer_to_local_file_agent,
+        web_agent.name: transfer_to_web_agent,
         coding_agent.name: transfer_to_coding_agent,
     }
-    system_triage_agent.functions.extend(
+    orchestrator_agent.functions.extend(
         [
-            transfer_to_filesurfer_agent,
-            transfer_to_websurfer_agent,
+            transfer_to_local_file_agent,
+            transfer_to_web_agent,
             transfer_to_coding_agent,
         ]
     )
-    filesurfer_agent.functions.append(transfer_back_to_triage_agent)
-    websurfer_agent.functions.append(transfer_back_to_triage_agent)
+    local_file_agent.functions.append(transfer_back_to_triage_agent)
+    web_agent.functions.append(transfer_back_to_triage_agent)
     coding_agent.functions.append(transfer_back_to_triage_agent)
-    return system_triage_agent
+    return orchestrator_agent

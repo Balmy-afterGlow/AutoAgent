@@ -43,7 +43,7 @@ from evaluation.utils import (
 )
 import os
 import os.path as osp
-from autoagent.agents import get_system_triage_agent
+from autoagent.agents import get_orchestrator_agent
 from autoagent.logger import LoggerManager, MetaChainLogger
 from rich.console import Console
 from rich.markdown import Markdown
@@ -345,21 +345,21 @@ def main(
 def user_mode(model: str, context_variables: dict):
     logger = LoggerManager.get_logger()
     console = Console()
-    system_triage_agent = get_system_triage_agent(model)
+    orchestrator_agent = get_orchestrator_agent(model)
     # assert 条件表达式, "失败时的错误提示"
     # 检查 条件表达式 是否为 True
     # 如果为 False，则抛出 AssertionError 并显示提示信息
     # 如果为 True，程序继续正常执行
     # 等同于：
-    # if not system_triage_agent.agent_teams:
-    #     raise AssertionError("System Triage Agent must have agent teams")
+    # if not orchestrator_agent.agent_teams:
+    #     raise AssertionError("Orchestrator Agent must have agent teams")
     assert (
-        system_triage_agent.agent_teams != {}
-    ), "System Triage Agent must have agent teams"
+        orchestrator_agent.agent_teams != {}
+    ), "Orchestrator Agent must have agent teams"
     messages = []
-    agent = system_triage_agent
-    agents = {system_triage_agent.name.replace(" ", "_"): system_triage_agent}
-    for agent_name, call_func in system_triage_agent.agent_teams.items():
+    agent = orchestrator_agent
+    agents = {orchestrator_agent.name.replace(" ", "_"): orchestrator_agent}
+    for agent_name, call_func in orchestrator_agent.agent_teams.items():
         agents[agent_name.replace(" ", "_")] = call_func("", "{}").agent
     agents["Upload_files"] = "select"
     style = Style.from_dict(
@@ -447,7 +447,7 @@ def user_mode(model: str, context_variables: dict):
             upload_infos.extend(
                 select_and_copy_files(files_dir, console, docker_files_dir)
             )
-            agent = agents["System_Triage_Agent"]
+            agent = agents["orchestrator_agent"]
         else:
             console.print(f"[bold red]Unknown agent: {agent}[/bold red]")
 
@@ -501,15 +501,15 @@ def deep_research(container_name: str, port: int, local_env: bool):
 
     logger = LoggerManager.get_logger()
     console = Console()
-    system_triage_agent = get_system_triage_agent(model)
+    orchestrator_agent = get_orchestrator_agent(model)
     assert (
-        system_triage_agent.agent_teams != {}
-    ), "System Triage Agent must have agent teams"
+        orchestrator_agent.agent_teams != {}
+    ), "Orchestrator Agent must have agent teams"
     messages = []
-    agent = system_triage_agent
-    agents = {system_triage_agent.name.replace(" ", "_"): system_triage_agent}
-    for agent_name in system_triage_agent.agent_teams.keys():
-        agents[agent_name.replace(" ", "_")] = system_triage_agent.agent_teams[
+    agent = orchestrator_agent
+    agents = {orchestrator_agent.name.replace(" ", "_"): orchestrator_agent}
+    for agent_name in orchestrator_agent.agent_teams.keys():
+        agents[agent_name.replace(" ", "_")] = orchestrator_agent.agent_teams[
             agent_name
         ]("placeholder").agent
     agents["Upload_files"] = "select"

@@ -39,7 +39,7 @@ def truncate_by_tokens(
         encoding.decode(truncated_tokens_bos)
         + "\n...\n"
         + encoding.decode(truncated_tokens_eos)
-        + "\n\nThe full console output is too long, so it is saved in the file: {0}\n\nYou may use the `File Surfer Agent` to view the full output.".format(
+        + "\n\nThe full console output is too long, so it is saved in the file: {0}\n\nYou may use the `Local File Agent` to view the full output.".format(
             output_path
         )
     )
