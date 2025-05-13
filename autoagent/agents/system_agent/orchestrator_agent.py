@@ -328,7 +328,9 @@ You need to remember that any function call under Orchestrator Agent must be cal
             agent=coding_agent,
         )
 
-    def transfer_back_to_triage_agent(completion_description: str, task_context: str):
+    def transfer_back_to_orchestrator_agent(
+        completion_description: str, task_context: str
+    ):
         """
         It must be called after confirming that the subtask has been completed. The best practice is to call this function only in a response to avoid calling it as the last function in a response to multiple function calls, which may lead to speculation that the task has been successfully completed.
 
@@ -379,7 +381,7 @@ You need to remember that any function call under Orchestrator Agent must be cal
             transfer_to_coding_agent,
         ]
     )
-    local_file_agent.functions.append(transfer_back_to_triage_agent)
-    web_agent.functions.append(transfer_back_to_triage_agent)
-    coding_agent.functions.append(transfer_back_to_triage_agent)
+    local_file_agent.functions.append(transfer_back_to_orchestrator_agent)
+    web_agent.functions.append(transfer_back_to_orchestrator_agent)
+    coding_agent.functions.append(transfer_back_to_orchestrator_agent)
     return orchestrator_agent

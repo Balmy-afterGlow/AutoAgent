@@ -152,11 +152,11 @@ def get_coding_agent(model: str, **kwargs) -> Agent:
 
   Note that you can use this agent to make complex computation, write a api request, and anything else that can be done by writing code.
 
-  When you think you have completed the task the `Orchestrator Agent` asked you to do, you should use `transfer_back_to_triage_agent` to transfer the conversation back to the `Orchestrator Agent`.
+  When you think you have completed the task the `Orchestrator Agent` asked you to do, you should use `transfer_back_to_orchestrator_agent` to transfer the conversation back to the `Orchestrator Agent`.
 
-  When you need additional information (such as an API key) or perform sensitive operations, you need to use `transfer_back_to_triage_agent` to transfer the proxy to the `Orchestrator Agent`, use the `case_not_resolved` tool to exit the loop, and issue a new query to the user or request user confirmation.
+  When you need additional information (such as an API key) or perform sensitive operations, you need to use `transfer_back_to_orchestrator_agent` to transfer the proxy to the `Orchestrator Agent`, use the `case_not_resolved` tool to exit the loop, and issue a new query to the user or request user confirmation.
 
-  You should do your best to complete the task until you need some additional information or it is really impossible to solve it, then use `transfer_back_to_triage_agent` to return to the `Orchestrator Agent` and let it make the next decision.
+  You should do your best to complete the task until you need some additional information or it is really impossible to solve it, then use `transfer_back_to_orchestrator_agent` to return to the `Orchestrator Agent` and let it make the next decision.
 
   [IMPORTANT] You can only complete the task by coding. Talk is cheap, show me the code with tools.
   """

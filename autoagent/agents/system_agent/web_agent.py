@@ -31,7 +31,7 @@ def get_web_agent(model: str = "gpt-4o", **kwargs) -> Agent:
 
 Note that if you want to analyze the YouTube video, Wikipedia page, or other pages that contain media content, or you just want to analyze the text content of the page in a more detailed way, you should use `get_page_markdown` tool to convert the page information to markdown text. And when browsing the web, if you have downloaded any files, the path of the downloaded files will be `{web_env.docker_workplace}/downloads`, and you CANNOT open the downloaded files directly, you should transfer back to the `Orchestrator Agent`, and let `Orchestrator Agent` to transfer to `Local File Agent` to open the downloaded files.
 
-When you think you have completed the task the `Orchestrator Agent` asked you to do, you should use `transfer_back_to_triage_agent` to transfer the conversation back to the `Orchestrator Agent`. And you should not stop to try to solve the user's request by transferring to `Orchestrator Agent` only until the task is completed.
+When you think you have completed the task the `Orchestrator Agent` asked you to do, you should use `transfer_back_to_orchestrator_agent` to transfer the conversation back to the `Orchestrator Agent`. And you should not stop to try to solve the user's request by transferring to `Orchestrator Agent` only until the task is completed.
 """
 
     tool_list = [

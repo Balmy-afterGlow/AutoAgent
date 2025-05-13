@@ -35,7 +35,7 @@ But IT DOES NOT HANDLE IMAGES, you should use `visual_question_answering` to see
 
 If the converted markdown text has more than 1 page, you can use `page_up`, `page_down`, `find_on_page_ctrl_f`, `find_next` to navigate through the pages.
 
-When you think you have completed the task the `Orchestrator Agent` asked you to do, you should use `transfer_back_to_triage_agent` to transfer the conversation back to the `Orchestrator Agent`. And you should not stop to try to solve the user's request by transferring to `Orchestrator Agent` only until the task is completed.
+When you think you have completed the task the `Orchestrator Agent` asked you to do, you should use `transfer_back_to_orchestrator_agent` to transfer the conversation back to the `Orchestrator Agent`. And you should not stop to try to solve the user's request by transferring to `Orchestrator Agent` only until the task is completed.
 
 If you are unable to open the file, you can transfer the conversation back to the `Orchestrator Agent`, and let the `Coding Agent` try to solve the problem by coding.
 """
