@@ -1,0 +1,7 @@
+# AutoAgent API 额外依赖
+# 如果需要使用 Web API 功能，请安装以下依赖：
+
+flask>=2.0.0
+flask-socketio>=5.0.0
+python-socketio>=5.0.0
+eventlet>=0.33.0

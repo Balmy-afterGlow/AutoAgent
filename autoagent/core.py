@@ -128,9 +128,13 @@ def adapt_tools_for_gemini(tools):
 
 
 class MetaChain:
-    def __init__(self, log_path: Union[str, None, MetaChainLogger] = None):
+    def __init__(
+        self, log_path: Union[str, None, MetaChainLogger] = None, event_callback=None
+    ):
         """
         log_path: path of log file, None
+        event_callback: 回调函数，用于实时获取执行过程中的事件信息
+                       回调函数签名: callback(event_type: str, data: dict)
         """
         if logger:
             self.logger = logger
@@ -138,8 +142,24 @@ class MetaChain:
             self.logger = log_path
         else:
             self.logger = MetaChainLogger(log_path=log_path)
+
+        # 添加事件回调
+        self.event_callback = event_callback
+
         # if self.logger.log_path is None: self.logger.info("[Warning] Not specific log path, so log will not be saved", "...", title="Log Path", color="light_cyan3")
         # else: self.logger.info("Log file is saved to", self.logger.log_path, "...", title="Log Path", color="light_cyan3")
+
+    def _emit_event(self, event_type: str, data: dict):
+        """发送事件到回调函数"""
+        if self.event_callback:
+            try:
+                self.event_callback(event_type, data)
+            except Exception as e:
+                self.logger.info(
+                    f"Event callback error: {e}",
+                    title="Event Callback Error",
+                    color="red",
+                )
 
     def _preprocess_tools_and_history(
         self,
@@ -304,23 +324,48 @@ class MetaChain:
 
         for tool_call in tool_calls:
             name = tool_call.function.name
+            args = json.loads(tool_call.function.arguments)
+
+            # 发送工具调用开始事件
+            self._emit_event(
+                "tool_call_start",
+                {
+                    "agent_name": agent.name,
+                    "tool_name": name,
+                    "tool_args": args,
+                    "tool_call_id": tool_call.id,
+                },
+            )
+
             # handle missing tool case, skip to next tool
             if name not in function_map:
                 self.logger.info(
                     f"Tool {name} not found in function map. You are recommended to use `run_tool` to run this tool.",
                     title="Tool Call Error",
                 )
+                error_msg = f"Error: Tool {name} not found. You are recommended to use `run_tool` to run this tool."
                 partial_response.messages.append(
                     {
                         "role": "tool",
                         "tool_call_id": tool_call.id,
                         "name": name,
-                        "content": f"Error: Tool {name} not found. You are recommended to use `run_tool` to run this tool.",
+                        "content": error_msg,
                     }
                 )
+
+                # 发送工具调用错误事件
+                self._emit_event(
+                    "tool_call_error",
+                    {
+                        "agent_name": agent.name,
+                        "tool_name": name,
+                        "tool_args": args,
+                        "error": error_msg,
+                    },
+                )
                 continue
+
             print(f"[grey58]\n[工具调用开始] 正在调用 {name}...[/]\n")
-            args = json.loads(tool_call.function.arguments)
             func = function_map[name]
             if __CTX_VARS_NAME__ in inspect.signature(func).parameters.keys():
                 args[__CTX_VARS_NAME__] = context_variables
@@ -336,15 +381,27 @@ class MetaChain:
                     "content": f"""{result.value}
 
 Task Context:
-{json.dumps(result.task_context, indent=2) if result.task_context else 'No task context available'}""",
+{json.dumps(result.task_context, indent=2) if result.task_context else "No task context available"}""",
                 }
+            )
+
+            # 发送工具调用完成事件
+            self._emit_event(
+                "tool_call_complete",
+                {
+                    "agent_name": agent.name,
+                    "tool_name": name,
+                    "tool_args": args,
+                    "tool_result": result.value,
+                    "task_context": result.task_context,
+                },
             )
 
             self.logger.print_message_block(partial_response.messages[-1])
             if result.image:
-                assert (
-                    handle_mm_func
-                ), f"handle_mm_func is not provided, but an image is returned by tool call {name}({tool_call.function.arguments})"
+                assert handle_mm_func, (
+                    f"handle_mm_func is not provided, but an image is returned by tool call {name}({tool_call.function.arguments})"
+                )
                 partial_response.messages.append(
                     {
                         "role": "user",
@@ -371,6 +428,15 @@ Task Context:
             partial_response.context_variables.update(result.context_variables)
             if result.agent:
                 partial_response.agent = result.agent
+                # 发送智能体切换事件
+                self._emit_event(
+                    "agent_switch",
+                    {
+                        "from_agent": agent.name,
+                        "to_agent": result.agent.name,
+                        "reason": f"Tool {name} returned new agent",
+                    },
+                )
             elif name != "case_resolved" and name != "case_not_resolved":
                 partial_response.agent = agent
 
@@ -394,9 +460,9 @@ Task Context:
         )
 
         if FN_CALL:
-            assert (
-                supports_function_calling(model=llm_model) == True
-            ), f"Model {llm_model} does not support function calling, please set `FN_CALL=False` to use non-function calling mode"
+            assert supports_function_calling(model=llm_model) == True, (
+                f"Model {llm_model} does not support function calling, please set `FN_CALL=False` to use non-function calling mode"
+            )
 
             history_with_header = remove_reasoning_content_in_messages(
                 history_with_header
@@ -412,9 +478,9 @@ Task Context:
             )
 
         else:
-            assert (
-                agent.tool_choice == "required"
-            ), f"Non-function calling mode MUST use tool_choice = 'required' rather than {agent.tool_choice}"
+            assert agent.tool_choice == "required", (
+                f"Non-function calling mode MUST use tool_choice = 'required' rather than {agent.tool_choice}"
+            )
 
             # NOTE: Remove the tool role from the conversation history, and make user and assistant appear alternately when necessary
             if NON_FN_CALL:
@@ -466,7 +532,6 @@ Task Context:
         init_len = len(messages)
 
         while len(history) - init_len < max_turns:
-
             message = {
                 "content": "",
                 "sender": agent.name,
@@ -556,9 +621,24 @@ Task Context:
         init_len = len(messages)
         is_native_support_for_functions = False
 
+        # 发送任务开始事件
+        self._emit_event(
+            "task_start",
+            {
+                "agent_name": active_agent.name,
+                "user_query": messages[-1]["content"] if messages else "",
+                "context_variables": dict(context_variables),
+            },
+        )
+
         self.logger.print_message_block(history[-1])
 
         while len(history) - init_len < max_turns and active_agent:
+            # 发送AI思考开始事件
+            self._emit_event(
+                "ai_thinking_start",
+                {"agent_name": active_agent.name, "turn": len(history) - init_len + 1},
+            )
 
             llm_response, tools_schema = self.get_chat_completion(
                 agent=active_agent,
@@ -597,6 +677,25 @@ Task Context:
                 is_native_support_for_functions,
             )
 
+            # 发送AI回复事件
+            self._emit_event(
+                "ai_response",
+                {
+                    "agent_name": active_agent.name,
+                    "content": message.content,
+                    "has_tool_calls": bool(message.tool_calls),
+                    "tool_calls": [
+                        {
+                            "name": tc.function.name,
+                            "args": json.loads(tc.function.arguments),
+                        }
+                        for tc in message.tool_calls
+                    ]
+                    if message.tool_calls
+                    else [],
+                },
+            )
+
             if not stream:
                 if hasattr(message, "reasoning_content") and message.reasoning_content:
                     print(
@@ -632,14 +731,40 @@ Task Context:
             else:
                 task_status = "no_tool_calls"
                 partial_response = Response(messages=[])
+
             history.extend(partial_response.messages)
             context_variables.update(partial_response.context_variables)
+
             if task_status == "additional_inquiry":
+                self._emit_event(
+                    "task_status",
+                    {"status": "additional_inquiry", "agent_name": active_agent.name},
+                )
                 break
             elif not partial_response.agent:
                 self.logger.info(f"Ending turn with {task_status}.", title="End Turn")
+                self._emit_event(
+                    "task_status",
+                    {
+                        "status": "completed",
+                        "agent_name": active_agent.name,
+                        "reason": task_status,
+                    },
+                )
                 break
             active_agent = partial_response.agent
+
+        # 发送任务完成事件
+        final_result = history[init_len:][-1]["content"] if history[init_len:] else ""
+        self._emit_event(
+            "task_complete",
+            {
+                "agent_name": active_agent.name if active_agent else "None",
+                "final_result": final_result,
+                "total_turns": len(history) - init_len,
+                "context_variables": dict(context_variables),
+            },
+        )
 
         return Response(
             messages=history[init_len:],
@@ -691,9 +816,9 @@ Task Context:
 
         if FN_CALL:
             create_model = model_override or agent.model
-            assert (
-                litellm.supports_function_calling(model=create_model) == True
-            ), f"Model {create_model} does not support function calling, please set `FN_CALL=False` to use non-function calling mode"
+            assert litellm.supports_function_calling(model=create_model) == True, (
+                f"Model {create_model} does not support function calling, please set `FN_CALL=False` to use non-function calling mode"
+            )
 
             create_params = {
                 "model": create_model,
@@ -720,9 +845,9 @@ Task Context:
             completion_response = await acompletion(**create_params)
         else:
             create_model = model_override or agent.model
-            assert (
-                agent.tool_choice == "required"
-            ), f"Non-function calling mode MUST use tool_choice = 'required' rather than {agent.tool_choice}"
+            assert agent.tool_choice == "required", (
+                f"Non-function calling mode MUST use tool_choice = 'required' rather than {agent.tool_choice}"
+            )
             last_content = messages[-1]["content"]
             tools_description = convert_tools_to_description(tools)
             messages[-1]["content"] = (
@@ -760,7 +885,7 @@ Task Context:
                 ChatCompletionMessageToolCall(**tool_call)
                 for tool_call in converted_message[0]["tool_calls"]
             ]
-            completion_response.choices[0].message = litellmMessage(
+            completion_response.choices[0].message = Message(
                 content=converted_message[0]["content"],
                 role="assistant",
                 tool_calls=converted_tool_calls,
@@ -796,7 +921,6 @@ Task Context:
         )
 
         while len(history) - init_len < max_turns and active_agent:
-
             # get completion with current history, agent
             completion = await self.get_chat_completion_async(
                 agent=active_agent,
